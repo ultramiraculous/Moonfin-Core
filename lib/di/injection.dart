@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../auth/store/authentication_store.dart';
 import '../auth/store/client_certificate_store.dart';
+import '../auth/store/device_shared_store.dart';
 import '../data/database/database_connection.dart';
 import '../data/database/offline_database.dart';
 import '../data/offline/offline_catalog.dart';
@@ -425,8 +426,11 @@ Future<void> configureBackgroundDependencies({bool offline = false}) async {
   configureHttpOverrides();
   final preferenceStore = PreferenceStore();
   await preferenceStore.init();
+  await DeviceSharedStore.init(preferenceStore);
 
-  final deviceId = preferenceStore.getString('device_id') ?? const Uuid().v4();
+  final deviceId = DeviceSharedStore.active?.getString('device_id') ??
+      preferenceStore.getString('device_id') ??
+      const Uuid().v4();
   final appVersion = await _resolveAppVersion();
   setServerUserAgentVersion(appVersion);
   getIt.registerSingleton<DeviceInfo>(
@@ -462,10 +466,17 @@ Future<void> configureDependencies() async {
   await migrateAudioPassthroughMode(preferenceStore);
   await migrateTrickplayPreferenceConsolidation(preferenceStore);
 
-  var deviceId = preferenceStore.getString('device_id');
+  await DeviceSharedStore.init(preferenceStore);
+  final sharedStore = DeviceSharedStore.active;
+  var deviceId =
+      sharedStore?.getString('device_id') ??
+      preferenceStore.getString('device_id');
   if (deviceId == null) {
     deviceId = const Uuid().v4();
     await preferenceStore.setString('device_id', deviceId);
+  }
+  if (sharedStore != null && sharedStore.getString('device_id') == null) {
+    await sharedStore.set('device_id', deviceId);
   }
 
   final clientName = _clientName();

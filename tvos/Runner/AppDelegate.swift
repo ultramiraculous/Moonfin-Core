@@ -41,6 +41,7 @@ class AppDelegate: FlutterAppDelegate {
     private var nativeApplePlayerChannel: NativeApplePlayerChannel?
     private var aetherVideoChannel: AetherVideoChannel?
     private var topShelfChannel: TopShelfChannel?
+    private var sharedStoreChannel: AppleTvSharedStoreChannel?
     private var previewChannel: AppleTvPreviewChannel?
     private var systemChannel: AppleTvSystemChannel?
     private var audioChannel: AppleTvAudioChannel?
@@ -81,6 +82,8 @@ class AppDelegate: FlutterAppDelegate {
                 }),
             withId: AetherVideoViewFactory.viewType)
         topShelfChannel = TopShelfChannel(
+            messenger: flutterViewController.binaryMessenger)
+        sharedStoreChannel = AppleTvSharedStoreChannel(
             messenger: flutterViewController.binaryMessenger)
         previewChannel = AppleTvPreviewChannel(
             messenger: flutterViewController.binaryMessenger,

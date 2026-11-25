@@ -37,6 +37,7 @@
 		97C1470B1CF9000082B4168D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000082B4168E /* LaunchScreen.storyboard */; };
 		97C1470F1CF9000082B4168C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000082B4168C /* Assets.xcassets */; };
 		991C71B70423D0CB846BAF6C /* TopShelfChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0DB225C5FD5F802D648CC0 /* TopShelfChannel.swift */; };
+		5E7A2ED0C0DE5E7A2ED00001 /* AppleTvSharedStoreChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A2ED0C0DE5E7A2ED00002 /* AppleTvSharedStoreChannel.swift */; };
 		9AEAD1A753938BD4A934D210 /* PlayerTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C96906304636AD16C64D1AC9 /* PlayerTypes.swift */; };
 		A0A9A43E975A45351F5BAC7A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4AA2EEAB62F9513C16D8925F /* Foundation.framework */; };
 		A28B0984853CBF7759E55954 /* NowPlayingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A71870DB153929F6FDDC901 /* NowPlayingController.swift */; };
@@ -113,6 +114,7 @@
 		262ACA82479C66EBA778DB00 /* Runner.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		26AF6C4FDC95C4A3E0FE6876 /* GameVideoOutput.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameVideoOutput.swift; sourceTree = "<group>"; };
 		2D0DB225C5FD5F802D648CC0 /* TopShelfChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TopShelfChannel.swift; sourceTree = "<group>"; };
+		5E7A2ED0C0DE5E7A2ED00002 /* AppleTvSharedStoreChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppleTvSharedStoreChannel.swift; sourceTree = "<group>"; };
 		3B3967151E833CAB004F5970 /* Flutter.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Flutter.framework; path = Flutter/Flutter.framework; sourceTree = "<group>"; };
 		3D25A3FF43C9B94D5ED8A397 /* genesis_plus_gx_libretro.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = genesis_plus_gx_libretro.framework; sourceTree = "<group>"; };
 		408735DC25E7BC9A0E23AF66 /* pcsx_rearmed_libretro.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = pcsx_rearmed_libretro.framework; sourceTree = "<group>"; };
@@ -308,6 +310,7 @@
 				66DD9E560EFC48A917ADF4E1 /* Playback */,
 				262ACA82479C66EBA778DB00 /* Runner.entitlements */,
 				2D0DB225C5FD5F802D648CC0 /* TopShelfChannel.swift */,
+				5E7A2ED0C0DE5E7A2ED00002 /* AppleTvSharedStoreChannel.swift */,
 				5B3D4A2E4C583DF7B8CAE4BA /* AppleTvPreviewChannel.swift */,
 				A0D05FC70CE4F8BD2EC3962C /* AppleTvSystemChannel.swift */,
 				AD10AD10AD10AD10AD100002 /* AppleTvAudioChannel.swift */,
@@ -577,6 +580,7 @@
 				97C146FB1CF9000082B4168C /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				991C71B70423D0CB846BAF6C /* TopShelfChannel.swift in Sources */,
+				5E7A2ED0C0DE5E7A2ED00001 /* AppleTvSharedStoreChannel.swift in Sources */,
 				86EBDA29EC9F3F8B48EC6A25 /* AppleTvPreviewChannel.swift in Sources */,
 				6E8429C73DFB8688BD40C60F /* AppleTvSystemChannel.swift in Sources */,
 				AD10AD10AD10AD10AD100001 /* AppleTvAudioChannel.swift in Sources */,

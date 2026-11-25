@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/server.dart';
 import '../models/user.dart';
+import 'device_shared_store.dart';
 
 class AuthenticationStore {
   static const _storeKey = 'authentication_store_json';
@@ -17,7 +18,10 @@ class AuthenticationStore {
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
 
-    final raw = _prefs!.getString(_storeKey);
+    final shared = DeviceSharedStore.active;
+    final raw = shared != null
+        ? shared.getString(_storeKey)
+        : _prefs!.getString(_storeKey);
     if (raw != null && raw.trim().isNotEmpty) {
       try {
         _data = jsonDecode(raw) as Map<String, dynamic>;
@@ -32,6 +36,11 @@ class AuthenticationStore {
   }
 
   Future<void> _save() async {
+    final shared = DeviceSharedStore.active;
+    if (shared != null) {
+      await shared.set(_storeKey, jsonEncode(_data));
+      return;
+    }
     final prefs = _prefs;
     if (prefs == null) return;
     await prefs.setString(_storeKey, jsonEncode(_data));
@@ -93,7 +102,9 @@ class AuthenticationStore {
     final serverData = Map<String, dynamic>.from(raw as Map);
 
     final usersRaw = serverData['users'];
-    final users = usersRaw is Map ? Map<String, dynamic>.from(usersRaw) : <String, dynamic>{};
+    final users = usersRaw is Map
+        ? Map<String, dynamic>.from(usersRaw)
+        : <String, dynamic>{};
     return users.entries.map((entry) {
       return PrivateUser.fromJson(
         entry.key,
@@ -109,7 +120,9 @@ class AuthenticationStore {
     final serverData = Map<String, dynamic>.from(raw as Map);
 
     final usersRaw = serverData['users'];
-    final users = usersRaw is Map ? Map<String, dynamic>.from(usersRaw) : <String, dynamic>{};
+    final users = usersRaw is Map
+        ? Map<String, dynamic>.from(usersRaw)
+        : <String, dynamic>{};
     final userRaw = users[userId];
     if (userRaw == null) return null;
     final userData = Map<String, dynamic>.from(userRaw as Map);
@@ -119,10 +132,10 @@ class AuthenticationStore {
 
   Future<void> putUser(PrivateUser user) async {
     final servers = Map<String, dynamic>.from(_servers);
-    final serverData =
-        Map<String, dynamic>.from(servers[user.serverId] as Map? ?? {});
-    final users =
-        Map<String, dynamic>.from(serverData['users'] as Map? ?? {});
+    final serverData = Map<String, dynamic>.from(
+      servers[user.serverId] as Map? ?? {},
+    );
+    final users = Map<String, dynamic>.from(serverData['users'] as Map? ?? {});
 
     users[user.id] = user.toJson();
     serverData['users'] = users;
@@ -137,8 +150,9 @@ class AuthenticationStore {
     if (serverData == null) return;
 
     final mutableServerData = Map<String, dynamic>.from(serverData);
-    final users =
-        Map<String, dynamic>.from(mutableServerData['users'] as Map? ?? {});
+    final users = Map<String, dynamic>.from(
+      mutableServerData['users'] as Map? ?? {},
+    );
     final removed = users.remove(userId);
     mutableServerData['users'] = users;
     // A Silo account's tokens go with its last user on this server, so a
@@ -198,8 +212,9 @@ class AuthenticationStore {
     bool newLogin = false,
   }) async {
     final servers = Map<String, dynamic>.from(_servers);
-    final serverData =
-        Map<String, dynamic>.from(servers[serverId] as Map? ?? {});
+    final serverData = Map<String, dynamic>.from(
+      servers[serverId] as Map? ?? {},
+    );
     final accounts = Map<String, dynamic>.from(
       serverData[_siloAccountsKey] as Map? ?? {},
     );

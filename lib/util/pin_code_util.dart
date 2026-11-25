@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:jellyfin_preference/jellyfin_preference.dart';
 
+import '../auth/store/device_shared_store.dart';
+
 /// Utility for PIN code hashing and verification.
 ///
 /// Uses SHA-256 to store and verify user PINs securely.
@@ -37,24 +39,23 @@ class PinCodeUtil {
 
   /// Whether the user has a PIN enabled, here or on the server.
   bool get isPinEnabled =>
-      (_store.getBool(_pinEnabledKey) ?? false) || isServerBacked;
+      (_getBool(_pinEnabledKey) ?? false) || isServerBacked;
 
   /// Whether the server holds a PIN for the user, as last heard. The hash kept
   /// here is then only a copy of what the user last typed, for when the server
   /// cannot be asked.
-  bool get isServerBacked => _store.getBool(_serverBackedKey) ?? false;
+  bool get isServerBacked => _getBool(_serverBackedKey) ?? false;
 
   Future<void> setServerBacked(bool value) async {
     if (value) {
-      await _store.setBool(_serverBackedKey, true);
+      await _set(_serverBackedKey, true);
     } else {
-      await _store.remove(_serverBackedKey);
+      await _remove(_serverBackedKey);
     }
   }
 
   /// Whether there is a PIN on the device to check a guess against.
-  bool get hasLocalVerifier =>
-      (_store.getString(_pinHashKey) ?? '').isNotEmpty;
+  bool get hasLocalVerifier => (_getString(_pinHashKey) ?? '').isNotEmpty;
 
   /// Hash a PIN string using SHA-256.
   static String hashPin(String pin) {
@@ -65,7 +66,7 @@ class PinCodeUtil {
   /// How long until another guess is accepted, or zero when one is accepted
   /// now.
   Duration get lockoutRemaining {
-    final until = _store.getInt(_lockedUntilKey) ?? 0;
+    final until = _getInt(_lockedUntilKey) ?? 0;
     if (until == 0) return Duration.zero;
     final remaining = until - DateTime.now().toUtc().millisecondsSinceEpoch;
     return remaining <= 0 ? Duration.zero : Duration(milliseconds: remaining);
@@ -79,21 +80,21 @@ class PinCodeUtil {
   /// way through.
   bool verifyPin(String pin) {
     if (isLockedOut) return false;
-    final storedHash = _store.getString(_pinHashKey);
+    final storedHash = _getString(_pinHashKey);
     if (storedHash == null || storedHash.isEmpty) return false;
     return hashPin(pin) == storedHash;
   }
 
   /// Records a wrong guess and returns how long the next one has to wait.
   Future<Duration> registerFailedAttempt() async {
-    final failed = (_store.getInt(_failedAttemptsKey) ?? 0) + 1;
-    await _store.setInt(_failedAttemptsKey, failed);
+    final failed = (_getInt(_failedAttemptsKey) ?? 0) + 1;
+    await _set(_failedAttemptsKey, failed);
     if (failed <= _freeAttempts) return Duration.zero;
 
     final steps = failed - _freeAttempts;
     var lockout = _lockoutStep * steps;
     if (lockout > _maxLockout) lockout = _maxLockout;
-    await _store.setInt(
+    await _set(
       _lockedUntilKey,
       DateTime.now().toUtc().add(lockout).millisecondsSinceEpoch,
     );
@@ -101,27 +102,64 @@ class PinCodeUtil {
   }
 
   Future<void> clearFailedAttempts() async {
-    await _store.remove(_failedAttemptsKey);
-    await _store.remove(_lockedUntilKey);
+    await _remove(_failedAttemptsKey);
+    await _remove(_lockedUntilKey);
   }
 
   /// Set a new PIN (hashes and stores it).
   Future<void> setPin(String pin) async {
-    await _store.setString(_pinHashKey, hashPin(pin));
-    await _store.setBool(_pinEnabledKey, true);
+    await _set(_pinHashKey, hashPin(pin));
+    await _set(_pinEnabledKey, true);
     await clearFailedAttempts();
   }
 
   /// Remove the PIN and disable it.
   Future<void> removePin() async {
-    await _store.remove(_pinHashKey);
-    await _store.setBool(_pinEnabledKey, false);
-    await _store.remove(_serverBackedKey);
+    await _remove(_pinHashKey);
+    await _set(_pinEnabledKey, false);
+    await _remove(_serverBackedKey);
     await clearFailedAttempts();
   }
 
   /// Enable or disable PIN without changing the hash.
   Future<void> setPinEnabled(bool enabled) async {
-    await _store.setBool(_pinEnabledKey, enabled);
+    await _set(_pinEnabledKey, enabled);
+  }
+
+  // The accounts are shared by every Apple TV user, so their PINs must be too.
+  DeviceSharedStore? get _shared => DeviceSharedStore.active;
+
+  bool? _getBool(String key) {
+    final shared = _shared;
+    return shared != null ? shared.getBool(key) : _store.getBool(key);
+  }
+
+  String? _getString(String key) {
+    final shared = _shared;
+    return shared != null ? shared.getString(key) : _store.getString(key);
+  }
+
+  int? _getInt(String key) {
+    final shared = _shared;
+    return shared != null ? shared.getInt(key) : _store.getInt(key);
+  }
+
+  Future<void> _set(String key, Object value) async {
+    final shared = _shared;
+    if (shared != null) return shared.set(key, value);
+    switch (value) {
+      case bool v:
+        await _store.setBool(key, v);
+      case int v:
+        await _store.setInt(key, v);
+      case String v:
+        await _store.setString(key, v);
+    }
+  }
+
+  Future<void> _remove(String key) async {
+    final shared = _shared;
+    if (shared != null) return shared.remove(key);
+    await _store.remove(key);
   }
 }
