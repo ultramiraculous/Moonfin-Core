@@ -168,7 +168,8 @@ class SeerrMedia {
 
 /// One Radarr/Sonarr queue entry, reported by Seerr while a request downloads.
 /// Only what the progress bars need: the byte counts, the download id to
-/// count a season pack once, and the queue status and time left.
+/// count a season pack once, the queue status and time left, and which
+/// episode a Sonarr entry is for.
 @JsonSerializable()
 class SeerrDownloadingItem {
   final int? size;
@@ -188,12 +189,20 @@ class SeerrDownloadingItem {
   /// the client can't estimate it, such as for a torrent with no peers.
   final String? timeLeft;
 
+  /// Sonarr only, from the entry's episode. Null for a movie.
+  @JsonKey(readValue: _readEpisodeField)
+  final int? seasonNumber;
+  @JsonKey(readValue: _readEpisodeField)
+  final int? episodeNumber;
+
   const SeerrDownloadingItem({
     this.size,
     this.sizeLeft,
     this.downloadId,
     this.status,
     this.timeLeft,
+    this.seasonNumber,
+    this.episodeNumber,
   });
 
   factory SeerrDownloadingItem.fromJson(Map<String, dynamic> json) =>
@@ -290,6 +299,9 @@ class SeerrUser {
 
   Map<String, dynamic> toJson() => _$SeerrUserToJson(this);
 }
+
+Object? _readEpisodeField(Map<dynamic, dynamic> json, String key) =>
+    (json['episode'] as Map?)?[key];
 
 // auth/me nests the user's own settings under settings, but toJson writes them
 // flat, so a key is read from either place.

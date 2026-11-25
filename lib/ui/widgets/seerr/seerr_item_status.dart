@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../data/models/aggregated_item.dart';
 import '../../../data/services/seerr/seerr_api_models.dart';
 import '../../../data/viewmodels/item_detail_view_model.dart';
 import '../../../data/viewmodels/seerr_media_detail_view_model.dart';
@@ -14,9 +15,10 @@ import 'seerr_status_pill.dart';
 
 /// The Seerr state worth showing beside a library item's metadata, or null when
 /// there is nothing to say. Callers check for null rather than rendering an
-/// empty widget, so the padding and separators around it go too.
+/// empty widget, so the padding and separators around it go too. A season or
+/// episode page shows its season's status.
 SeerrMediaDetailState? seerrItemStatus(ItemDetailViewModel viewModel) {
-  final state = _resolved(viewModel);
+  final state = _resolvedForItem(viewModel);
   if (state == null) return null;
   final worthShowing =
       seerrStatusIsNoteworthy(state.hd) || seerrStatusIsNoteworthy(state.uhd);
@@ -129,12 +131,28 @@ Map<int, int> seerrItemSeasonStatus(ItemDetailViewModel viewModel) {
 }
 
 /// The Seerr state of an item with something downloading, or with an approved
-/// request the arr is still waiting on, or null.
+/// request the arr is still waiting on, or null. A season or episode page
+/// only counts the downloads for that season or episode.
 SeerrMediaDetailState? seerrItemDownloads(ItemDetailViewModel viewModel) {
-  final state = _resolved(viewModel);
+  final state = _resolvedForItem(viewModel);
   if (state == null) return null;
   final downloading = state.hdDownload != null || state.download4k != null;
   return downloading || state.hd.arrWait != null ? state : null;
+}
+
+/// The season or episode a library Season or Episode is, or null for any
+/// other item or one the library doesn't number.
+SeerrSeriesPart? seerrSeriesPartOf(AggregatedItem item) {
+  final index = item.indexNumber;
+  if (index == null) return null;
+  return switch (item.type) {
+    'Season' => SeerrSeriesPart(index),
+    'Episode' => switch (item.parentIndexNumber) {
+      final season? => SeerrSeriesPart(season, episode: index),
+      null => null,
+    },
+    _ => null,
+  };
 }
 
 /// Progress bars for whatever Radarr or Sonarr is fetching right now, one per
@@ -173,6 +191,19 @@ class SeerrItemDownloadBars extends StatelessWidget {
       ],
     );
   }
+}
+
+/// [_resolved] narrowed to the season or episode a Season or Episode page
+/// shows, or null when the library doesn't number it.
+SeerrMediaDetailState? _resolvedForItem(ItemDetailViewModel viewModel) {
+  final state = _resolved(viewModel);
+  if (state == null) return null;
+  final item = viewModel.item;
+  if (item == null || (item.type != 'Season' && item.type != 'Episode')) {
+    return state;
+  }
+  final part = seerrSeriesPartOf(item);
+  return part == null ? null : state.forPart(part);
 }
 
 /// The item's Seerr state once the lookup has landed and found something, and

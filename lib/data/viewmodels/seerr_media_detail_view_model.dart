@@ -35,6 +35,29 @@ String seerrRegion(String? user, String? server) {
   return 'US';
 }
 
+/// A season, or one episode of it, that a library page for part of a series
+/// is showing. Seerr and the arr track the whole series, so what they report
+/// is narrowed to this before it is drawn there.
+@immutable
+class SeerrSeriesPart {
+  final int season;
+  final int? episode;
+
+  const SeerrSeriesPart(this.season, {this.episode});
+
+  bool includes(int? seasonNumber, int? episodeNumber) =>
+      seasonNumber == season && (episode == null || episodeNumber == episode);
+
+  @override
+  bool operator ==(Object other) =>
+      other is SeerrSeriesPart &&
+      other.season == season &&
+      other.episode == episode;
+
+  @override
+  int get hashCode => Object.hash(season, episode);
+}
+
 /// One quality track (HD or 4K) of a title: its media status, the requests
 /// for that track, and the flags the UI reads. Seerr stores the two
 /// qualities independently, as status vs status4k and SeerrRequest.is4k, so
@@ -57,6 +80,10 @@ class SeerrQualityStatus {
   /// to the request list.
   final List<SeerrSeasonAvailability> seasonAvailability;
 
+  /// The part of the series this track is narrowed to, or null for the whole
+  /// title. [status], the requests and the season list are then that season's.
+  final SeerrSeriesPart? part;
+
   const SeerrQualityStatus({
     required this.is4k,
     required this.status,
@@ -67,6 +94,7 @@ class SeerrQualityStatus {
     required this.currentUserId,
     this.arrQueue,
     this.seasonAvailability = const [],
+    this.part,
   });
 
   factory SeerrQualityStatus.of({
@@ -75,12 +103,32 @@ class SeerrQualityStatus {
     required bool canManageRequests,
     required int? currentUserId,
     ArrQueue? arrQueue,
+    SeerrSeriesPart? part,
   }) {
-    final queue = is4k ? null : arrQueue;
-    final status = (is4k ? mediaInfo?.status4k : mediaInfo?.status) ?? 0;
-    final requests = (mediaInfo?.requests ?? const <SeerrRequest>[])
+    final wholeQueue = is4k ? null : arrQueue;
+    final queue = part == null
+        ? wholeQueue
+        : wholeQueue?.forSeason(part.season, episode: part.episode);
+    final items =
+        is4k ? mediaInfo?.downloadStatus4k : mediaInfo?.downloadStatus;
+    final titleStatus = (is4k ? mediaInfo?.status4k : mediaInfo?.status) ?? 0;
+    var requests = (mediaInfo?.requests ?? const <SeerrRequest>[])
         .where((r) => r.is4k == is4k)
         .toList();
+    var seasons = mediaInfo?.seasons ?? const <SeerrSeasonAvailability>[];
+    var status = titleStatus;
+    if (part != null) {
+      final season = part.season;
+      requests = [
+        for (final r in requests)
+          if (r.seasons?.any((s) => s.seasonNumber == season) ?? false) r,
+      ];
+      seasons = [
+        for (final s in seasons)
+          if (s.seasonNumber == season) s,
+      ];
+      status = _seasonStatusOf(is4k, seasons, requests)[season] ?? 0;
+    }
     return SeerrQualityStatus(
       is4k: is4k,
       status: status,
@@ -90,16 +138,24 @@ class SeerrQualityStatus {
               r.status == SeerrRequest.statusPending ||
               r.status == SeerrRequest.statusApproved)
           .toList(),
+      // The title's status gates the bar: a season Seerr calls available can
+      // still have an upgrade downloading.
       download: SeerrDownloadSummary.forMedia(
-        status: status,
-        items: is4k ? mediaInfo?.downloadStatus4k : mediaInfo?.downloadStatus,
+        status: titleStatus,
+        items: part == null
+            ? items
+            : [
+                for (final item in items ?? const <SeerrDownloadingItem>[])
+                  if (part.includes(item.seasonNumber, item.episodeNumber))
+                    item,
+              ],
         arrQueue: queue,
       ),
       canManageRequests: canManageRequests,
       currentUserId: currentUserId,
       arrQueue: queue,
-      seasonAvailability:
-          mediaInfo?.seasons ?? const <SeerrSeasonAvailability>[],
+      seasonAvailability: seasons,
+      part: part,
     );
   }
 
@@ -131,9 +187,18 @@ class SeerrQualityStatus {
         .where((r) => r.status == SeerrRequest.statusApproved)
         .toList();
     if (approved.isEmpty) return null;
-    return queue.forSeasons([
+    final seasons = {
       for (final r in approved) ...?r.seasons?.map((s) => s.seasonNumber),
-    ]).wait;
+    };
+    final part = this.part;
+    if (part != null) {
+      // An episode the library has isn't waiting on anything, and neither is
+      // a season nobody asked for.
+      if (part.episode != null) return null;
+      if (seasons.isNotEmpty && !seasons.contains(part.season)) return null;
+      return queue.wait;
+    }
+    return queue.forSeasons(seasons).wait;
   }
 
   /// The stuck download an admin may swap for another release, or null.
@@ -212,7 +277,14 @@ class SeerrQualityStatus {
   /// Deliberately separate from [unavailableOrRequestedSeasons], which answers
   /// the narrower "may this season still be requested" question the request
   /// sheet asks.
-  Map<int, int> get seasonStatus {
+  Map<int, int> get seasonStatus =>
+      _seasonStatusOf(is4k, seasonAvailability, requests);
+
+  static Map<int, int> _seasonStatusOf(
+    bool is4k,
+    List<SeerrSeasonAvailability> seasonAvailability,
+    List<SeerrRequest> requests,
+  ) {
     final byNumber = <int, int>{};
 
     // What the server says, wherever it says anything.
@@ -264,6 +336,10 @@ class SeerrMediaDetailState {
   /// can't read it or the title isn't on its way.
   final ArrQueue? arrQueue;
 
+  /// The season or episode the tracks' downloads are narrowed to, set by
+  /// [forPart]. Null for the whole title.
+  final SeerrSeriesPart? part;
+
   const SeerrMediaDetailState({
     this.isLoading = false,
     this.error,
@@ -283,6 +359,7 @@ class SeerrMediaDetailState {
     this.streamingRegion = 'US',
     this.discoverRegion = 'US',
     this.arrQueue,
+    this.part,
   });
 
   bool get isMovie => movie != null;
@@ -383,6 +460,7 @@ class SeerrMediaDetailState {
         canManageRequests: canManageRequests,
         currentUserId: currentUser?.id,
         arrQueue: arrQueue,
+        part: part,
       );
 
   SeerrQualityStatus get hd => quality(is4k: false);
@@ -448,7 +526,33 @@ class SeerrMediaDetailState {
         streamingRegion: streamingRegion ?? this.streamingRegion,
         discoverRegion: discoverRegion ?? this.discoverRegion,
         arrQueue: clearArrQueue ? null : (arrQueue ?? this.arrQueue),
+        part: part,
       );
+
+  /// The same state with the downloads narrowed to one season or episode of
+  /// the series. A movie has no parts, so it comes back as it is.
+  SeerrMediaDetailState forPart(SeerrSeriesPart part) => !isTv
+      ? this
+      : SeerrMediaDetailState(
+          isLoading: isLoading,
+          error: error,
+          movie: movie,
+          tv: tv,
+          similar: similar,
+          recommendations: recommendations,
+          currentUser: currentUser,
+          isRequesting: isRequesting,
+          requestError: requestError,
+          requestErrorKind: requestErrorKind,
+          requestSuccess: requestSuccess,
+          quota: quota,
+          isTogglingWatchlist: isTogglingWatchlist,
+          onUserWatchlist: onUserWatchlist,
+          watchlistError: watchlistError,
+          streamingRegion: streamingRegion,
+          arrQueue: arrQueue,
+          part: part,
+        );
 }
 
 class SeerrMediaDetailViewModel extends ChangeNotifier {

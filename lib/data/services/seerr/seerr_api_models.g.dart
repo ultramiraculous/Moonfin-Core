@@ -148,6 +148,8 @@ SeerrDownloadingItem _$SeerrDownloadingItemFromJson(
   downloadId: json['downloadId'] as String?,
   status: json['status'] as String?,
   timeLeft: json['timeLeft'] as String?,
+  seasonNumber: (_readEpisodeField(json, 'seasonNumber') as num?)?.toInt(),
+  episodeNumber: (_readEpisodeField(json, 'episodeNumber') as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$SeerrDownloadingItemToJson(
@@ -158,6 +160,8 @@ Map<String, dynamic> _$SeerrDownloadingItemToJson(
   'downloadId': instance.downloadId,
   'status': instance.status,
   'timeLeft': instance.timeLeft,
+  'seasonNumber': instance.seasonNumber,
+  'episodeNumber': instance.episodeNumber,
 };
 
 SeerrExternalIds _$SeerrExternalIdsFromJson(Map<String, dynamic> json) =>

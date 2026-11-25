@@ -115,7 +115,7 @@ class SeerrDownloadSummary {
   ///
   /// [arrQueue] is the arr's queue for the title, already narrowed to the
   /// request's seasons. Moonbase only reads the default non-4K arr, so a 4K
-  /// request ignores it.
+  /// request ignores it. Seerr's own items are narrowed the same way here.
   static SeerrDownloadSummary? forRequest(
     SeerrRequest request, {
     ArrQueue? arrQueue,
@@ -126,9 +126,18 @@ class SeerrDownloadSummary {
     }
     final media = request.media;
     if (media == null) return null;
+    final items = request.is4k ? media.downloadStatus4k : media.downloadStatus;
+    final seasons = {...?request.seasons?.map((s) => s.seasonNumber)};
     return forMedia(
       status: request.is4k ? media.status4k : media.status,
-      items: request.is4k ? media.downloadStatus4k : media.downloadStatus,
+      items: seasons.isEmpty
+          ? items
+          : [
+              for (final item in items ?? const <SeerrDownloadingItem>[])
+                if (item.seasonNumber == null ||
+                    seasons.contains(item.seasonNumber))
+                  item,
+            ],
       arrQueue: request.is4k ? null : arrQueue,
     );
   }

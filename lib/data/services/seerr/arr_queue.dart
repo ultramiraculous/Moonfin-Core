@@ -86,25 +86,40 @@ class ArrQueue {
   ArrQueue forSeasons(Iterable<int> seasons) {
     final wanted = seasons.toSet();
     if (wanted.isEmpty || isRadarr) return this;
-    return ArrQueue(
-      service: service,
-      inArr: inArr,
-      monitored: monitored,
-      canRemove: canRemove,
-      hasFile: hasFile,
-      isAvailable: isAvailable,
-      releaseDate: releaseDate,
-      lastSearchTime: lastSearchTime,
-      searching: searching,
-      seasons: this.seasons,
-      requestedSeasons: wanted,
-      items: [
-        for (final item in items)
-          if (item.seasonNumber == null || wanted.contains(item.seasonNumber))
-            item,
-      ],
+    return _narrowed(
+      wanted,
+      (item) => item.seasonNumber == null || wanted.contains(item.seasonNumber),
     );
   }
+
+  /// Only the items for one season, or one episode of it, for a page showing
+  /// just that part of the series. An item that doesn't say which episode it
+  /// is for could be any of them, so it goes.
+  ArrQueue forSeason(int season, {int? episode}) {
+    if (isRadarr) return this;
+    return _narrowed(
+      {season},
+      (item) =>
+          item.seasonNumber == season &&
+          (episode == null || item.episodeNumber == episode),
+    );
+  }
+
+  ArrQueue _narrowed(Set<int> wanted, bool Function(ArrQueueItem) keep) =>
+      ArrQueue(
+        service: service,
+        inArr: inArr,
+        monitored: monitored,
+        canRemove: canRemove,
+        hasFile: hasFile,
+        isAvailable: isAvailable,
+        releaseDate: releaseDate,
+        lastSearchTime: lastSearchTime,
+        searching: searching,
+        seasons: seasons,
+        requestedSeasons: wanted,
+        items: items.where(keep).toList(),
+      );
 
   /// What the arr is waiting on for a monitored title with nothing in its
   /// queue, or null when there's nothing to say. A download in the queue has
@@ -231,6 +246,7 @@ class ArrQueueItem {
   final String? timeLeft;
   final String? downloadId;
   final int? seasonNumber;
+  final int? episodeNumber;
 
   const ArrQueueItem({
     this.id,
@@ -245,6 +261,7 @@ class ArrQueueItem {
     this.timeLeft,
     this.downloadId,
     this.seasonNumber,
+    this.episodeNumber,
   });
 
   factory ArrQueueItem.fromJson(Map<String, dynamic> json) => ArrQueueItem(
@@ -263,6 +280,7 @@ class ArrQueueItem {
     timeLeft: json['timeleft'] as String?,
     downloadId: json['downloadId'] as String?,
     seasonNumber: (json['seasonNumber'] as num?)?.toInt(),
+    episodeNumber: (json['episodeNumber'] as num?)?.toInt(),
   );
 
   /// The arr's own words for what is wrong, or null. The error first, since
