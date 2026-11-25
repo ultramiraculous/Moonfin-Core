@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:playback_core/playback_core.dart';
 import 'package:server_core/server_core.dart';
+import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
+import 'package:rxdart/rxdart.dart';
 
 import '../../l10n/current_app_localizations.dart';
 import '../../preference/detail_section_layout.dart';
@@ -15,6 +17,7 @@ import '../models/lyrics.dart';
 import '../models/tmdb_item_ref.dart';
 import '../services/blocked_content_gate.dart';
 import '../services/row_data_source.dart';
+import '../services/series_episodes_store.dart';
 import '../services/series_track_sync.dart';
 import '../repositories/item_mutation_repository.dart';
 import '../repositories/mdblist_repository.dart';
@@ -368,17 +371,23 @@ class ItemDetailViewModel extends ChangeNotifier {
   /// The [seasonsLoaded] contract, for [episodes].
   bool get episodesLoaded => _episodesLoaded;
 
-  List<AggregatedItem> _seriesEpisodes = const [];
-  bool _seriesEpisodesRequested = false;
-  bool _seriesEpisodesLoaded = false;
-
-  /// Whether [seriesEpisodes] has arrived. Unlike [seasonsLoaded] this only
-  /// turns true on a fetch that worked, because a failed one is tried again.
-  bool get seriesEpisodesLoaded => _seriesEpisodesLoaded;
+  List<AggregatedItem>? _seriesEpisodes;
+  List<AggregatedItem>? _seriesEpisodesSource;
+  Future<void>? _seriesEpisodesLoad;
+  StreamSubscription<List<AggregatedItem>>? _seriesEpisodesWatch;
+  SeriesEpisodesStore? _seriesEpisodesStoreFallback;
+  final _seriesEpisodesSubject = BehaviorSubject<List<AggregatedItem>>();
 
   /// All episodes of a Series across every season, in the server's
-  /// season/episode order. Empty until [loadAllSeriesEpisodes] completes.
-  List<AggregatedItem> get seriesEpisodes => _seriesEpisodes;
+  /// season/episode order. Empty until [loadAllSeriesEpisodes] has a list.
+  List<AggregatedItem> get seriesEpisodes => _seriesEpisodes ?? const [];
+
+  /// [seriesEpisodes], or null while there is no list yet, kept or fetched.
+  List<AggregatedItem>? get knownSeriesEpisodes => _seriesEpisodes;
+
+  /// Every list [seriesEpisodes] takes, starting with the current one.
+  late final Stream<List<AggregatedItem>> seriesEpisodesStream =
+      _seriesEpisodesSubject.stream;
 
   /// Compares two episodes by season ([AggregatedItem.parentIndexNumber]),
   /// episode number ([AggregatedItem.indexNumber]), and finally [AggregatedItem.name]
@@ -404,6 +413,19 @@ class ItemDetailViewModel extends ChangeNotifier {
 
   AggregatedItem? _nextUp;
   AggregatedItem? get nextUp => _nextUp;
+
+  AggregatedItem? _seriesFallbackEpisode;
+  int _seriesFallbackRequest = 0;
+
+  /// The episode list fetch this page started before its first fallback
+  /// pick, which that pick takes instead of fetching again.
+  Future<List<AggregatedItem>>? _seriesEpisodesOpeningFetch;
+
+  /// What a Series plays when the server has no [nextUp]: its first unplayed
+  /// episode, or its first one when all are played.
+  ///
+  /// Picked from a fresh episode list, never a kept one; null until then.
+  AggregatedItem? get seriesFallbackEpisode => _seriesFallbackEpisode;
 
   /// Counts Next Up requests, so an older answer that arrives late can't
   /// replace the one a refresh asked for after it.
@@ -773,6 +795,17 @@ class ItemDetailViewModel extends ChangeNotifier {
         unawaited(_loadNextUp());
       }
     }
+    var seriesEpisodesChanged = false;
+    final fallback = userDataSync.applyOrNull(_seriesFallbackEpisode);
+    if (!identical(fallback, _seriesFallbackEpisode)) {
+      // Drop a fallback once it is played, until a fresh pick arrives.
+      final justPlayed =
+          _seriesFallbackEpisode?.isPlayed == false &&
+          fallback?.isPlayed == true;
+      _seriesFallbackEpisode = justPlayed ? null : fallback;
+      changed = true;
+      seriesEpisodesChanged = true;
+    }
 
     List<AggregatedItem> patch(List<AggregatedItem> list) {
       final patched = userDataSync.applyAll(list);
@@ -781,7 +814,21 @@ class ItemDetailViewModel extends ChangeNotifier {
     }
 
     _episodes = patch(_episodes);
-    _seriesEpisodes = patch(_seriesEpisodes);
+    final seriesEpisodes = _seriesEpisodes;
+    if (seriesEpisodes != null) {
+      final patched = patch(seriesEpisodes);
+      if (!identical(patched, seriesEpisodes)) {
+        _seriesEpisodes = patched;
+        _seriesEpisodesSubject.add(patched);
+        seriesEpisodesChanged = true;
+      }
+    }
+    if (seriesEpisodesChanged &&
+        _nextUp == null &&
+        !_syncingUserData &&
+        _item?.type == 'Series') {
+      unawaited(_resolveSeriesFallback());
+    }
     _seasons = patch(_seasons);
     _similar = patch(_similar);
     _filmography = patch(_filmography);
@@ -837,7 +884,7 @@ class ItemDetailViewModel extends ChangeNotifier {
       if (_nextUp != null) _nextUp!.id,
       for (final list in [
         _episodes,
-        _seriesEpisodes,
+        seriesEpisodes,
         _seasons,
         _similar,
         _filmography,
@@ -1347,40 +1394,126 @@ class ItemDetailViewModel extends ChangeNotifier {
     }
   }
 
-  /// Loads every episode of the current Series (all seasons) on demand. Used by
-  /// the Modern and Nouveau detail layout's Episodes tab, accurate season counts,
-  /// and the Spotlight More Episodes modal. No-op once already loaded.
-  Future<void> loadAllSeriesEpisodes() async {
+  /// Loads every episode of the current Series (all seasons) on demand.
+  ///
+  /// Draws the list kept from an earlier page of the series straight away,
+  /// and refetches it unless that list is recent. Repeat calls share the
+  /// load; [fresh] always fetches. Completes once the list is current.
+  Future<void> loadAllSeriesEpisodes({bool fresh = false}) {
     final item = _item;
-    if (item == null) return;
+    if (item == null) return Future.value();
     final seriesId = item.type == 'Series' ? itemId : item.seriesId;
-    if (seriesId == null || seriesId.isEmpty) return;
-    if (_seriesEpisodesRequested) return;
-    _seriesEpisodesRequested = true;
-    try {
-      final data = await _client.itemsApi.getEpisodes(
-        seriesId,
-        fields: _episodeOverviewFields,
-      );
-      final items = (data['Items'] as List?) ?? [];
-      _seriesEpisodes = _mapItems(
-        items,
-        fallbackRating: _item?.officialRating,
-      );
-      _seriesEpisodesLoaded = true;
-      notifyListeners();
-    } catch (_) {
-      // Left unloaded and silent on purpose. The Modern layout calls this from
-      // build, so the next rebuild gets another go, and notifying here would
-      // turn that into a loop against a server that is down.
-      _seriesEpisodesRequested = false;
+    if (seriesId == null || seriesId.isEmpty) return Future.value();
+    final pending = _seriesEpisodesLoad;
+    if (pending != null && !fresh) return pending;
+
+    final store = _seriesEpisodesStore;
+    final key = _seriesEpisodesKey(seriesId);
+    Future<List<AggregatedItem>> fetch() {
+      final fetching = _fetchSeriesEpisodes(seriesId);
+      if (item.type == 'Series' &&
+          _seriesFallbackRequest == 0 &&
+          _nextUp == null) {
+        _seriesEpisodesOpeningFetch = fetching;
+      }
+      return fetching;
     }
+
+    if (_seriesEpisodesWatch == null) {
+      final kept = store.peek(key);
+      if (kept != null && _seriesEpisodes == null) {
+        _setSeriesEpisodes(kept);
+        // Notify after the build that may be calling this.
+        scheduleMicrotask(() {
+          if (!_isDisposed) notifyListeners();
+        });
+      }
+      _seriesEpisodesWatch = store.watch(key, fetch).listen((episodes) {
+        if (_isDisposed || identical(episodes, _seriesEpisodesSource)) return;
+        _setSeriesEpisodes(episodes);
+        notifyListeners();
+      }, onError: (Object _) {});
+    }
+
+    final load = store
+        .get(key, fetch, fresh: fresh)
+        .then(
+          (episodes) {
+            if (_isDisposed) return;
+            if (!identical(episodes, _seriesEpisodesSource)) {
+              _setSeriesEpisodes(episodes);
+            }
+            notifyListeners();
+          },
+          // Left silent on purpose. The Modern layout calls this from build,
+          // so the next rebuild tries again; notifying here would loop
+          // against a server that is down.
+          onError: (Object _) {
+            _seriesEpisodesLoad = null;
+          },
+        );
+    _seriesEpisodesLoad = load;
+    return load;
   }
 
-  Future<void> refreshSeriesEpisodes() {
-    _seriesEpisodesRequested = false;
-    _seriesEpisodesLoaded = false;
-    return loadAllSeriesEpisodes();
+  Future<void> refreshSeriesEpisodes() => loadAllSeriesEpisodes(fresh: true);
+
+  SeriesEpisodesKey _seriesEpisodesKey(String seriesId) => SeriesEpisodesKey(
+    serverId: _serverId ?? _client.baseUrl,
+    userId: _client.userId ?? '',
+    seriesId: seriesId,
+  );
+
+  Future<List<AggregatedItem>> _fetchSeriesEpisodes(String seriesId) async {
+    final data = await _client.itemsApi.getEpisodes(
+      seriesId,
+      fields: _episodeOverviewFields,
+    );
+    final items = (data['Items'] as List?) ?? [];
+    return _mapItems(items, fallbackRating: _item?.officialRating);
+  }
+
+  /// Picks [seriesFallbackEpisode] from one fresh fetch of the episode list,
+  /// sharing the one this page opened with for the first pick.
+  Future<void> _resolveSeriesFallback() async {
+    if (_item?.type != 'Series') return;
+    final request = ++_seriesFallbackRequest;
+    final opening = _seriesEpisodesOpeningFetch;
+    _seriesEpisodesOpeningFetch = null;
+    final List<AggregatedItem> episodes;
+    try {
+      episodes =
+          await (opening ??
+              _seriesEpisodesStore.get(
+                _seriesEpisodesKey(itemId),
+                () => _fetchSeriesEpisodes(itemId),
+                fresh: true,
+              ));
+    } catch (_) {
+      return;
+    }
+    if (_isDisposed || request != _seriesFallbackRequest) return;
+    final patched = userDataSync.applyAll(episodes);
+    final fallback =
+        patched.firstWhereOrNull((e) => !e.isPlayed) ?? patched.firstOrNull;
+    if (identical(fallback, _seriesFallbackEpisode)) return;
+    _seriesFallbackEpisode = fallback;
+    notifyListeners();
+  }
+
+  SeriesEpisodesStore get _seriesEpisodesStore {
+    final getIt = GetIt.instance;
+    if (getIt.isRegistered<SeriesEpisodesStore>()) {
+      return getIt<SeriesEpisodesStore>();
+    }
+    return _seriesEpisodesStoreFallback ??= SeriesEpisodesStore();
+  }
+
+  void _setSeriesEpisodes(List<AggregatedItem> episodes) {
+    _seriesEpisodesSource = episodes;
+    final patched = userDataSync.applyAll(episodes);
+    _seriesEpisodes = patched;
+    _seriesEpisodesSubject.add(patched);
   }
 
   int _castLoadGeneration = 0;
@@ -1442,15 +1575,20 @@ class ItemDetailViewModel extends ChangeNotifier {
       }
     } catch (_) {
       // A failed refresh keeps the Next Up already shown.
+      if (!_isDisposed && request == _nextUpRequest && _nextUp == null) {
+        unawaited(_resolveSeriesFallback());
+      }
       return;
     }
 
     if (_isDisposed || request != _nextUpRequest) return;
     final previousId = _nextUp?.id;
     _nextUp = nextUp;
+    if (nextUp != null) _seriesEpisodesOpeningFetch = null;
     if (previousId != _nextUp?.id) {
       notifyListeners();
     }
+    if (nextUp == null) unawaited(_resolveSeriesFallback());
   }
 
   /// [fallbackRating] is the rating to judge an item by when it carries none of
@@ -3032,6 +3170,8 @@ class ItemDetailViewModel extends ChangeNotifier {
   void dispose() {
     _isDisposed = true;
     userDataSync.removeListener(_onUserDataChanged);
+    unawaited(_seriesEpisodesWatch?.cancel());
+    unawaited(_seriesEpisodesSubject.close());
     // The child owns a download poll timer, so this is what stops it.
     _seerr?.removeListener(_onSeerrChanged);
     _seerr?.dispose();

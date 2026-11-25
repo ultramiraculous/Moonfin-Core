@@ -271,17 +271,8 @@ class NouveauDetailsSectionState extends State<NouveauDetailsSection> {
     }
 
     if (item.type == 'Series') {
-      if (_vm.nextUp != null) {
-        return _vm.nextUp;
-      }
-
-      if (_vm.seriesEpisodes.isNotEmpty) {
-        try {
-          return _vm.seriesEpisodes.firstWhere((episode) => !episode.isPlayed);
-        } catch (_) {
-          return _vm.seriesEpisodes.first;
-        }
-      }
+      final episode = _vm.nextUp ?? _vm.seriesFallbackEpisode;
+      if (episode != null) return episode;
     }
 
     if (item.type == 'Season' && _vm.episodes.isNotEmpty) {

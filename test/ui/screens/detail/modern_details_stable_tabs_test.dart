@@ -113,7 +113,8 @@ void main() {
     when(() => vm.seriesEpisodes).thenReturn([]);
     when(() => vm.seasonsLoaded).thenReturn(false);
     when(() => vm.episodesLoaded).thenReturn(false);
-    when(() => vm.seriesEpisodesLoaded).thenReturn(false);
+    when(() => vm.knownSeriesEpisodes).thenReturn(null);
+    when(() => vm.seriesFallbackEpisode).thenReturn(null);
     when(() => vm.similar).thenReturn([]);
     when(() => vm.reviews).thenReturn(const []);
     when(() => vm.collectionItems).thenReturn([]);

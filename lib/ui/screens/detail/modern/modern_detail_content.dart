@@ -1586,7 +1586,7 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
     if (episodes.isEmpty) {
       return _reservedTabBody(
         focusNode: _episodesFirstFocusNode,
-        loaded: _vm.seriesEpisodesLoaded,
+        loaded: _vm.knownSeriesEpisodes != null,
         emptyMessage: l10n.noEpisodesLoaded,
         cardWidth: _landscape ? 240.0 : 180.0,
         heightRatio: 9 / 16,
@@ -2889,16 +2889,7 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
   AggregatedItem? _getRelevantEpisode(AggregatedItem item) {
     if (item.type == 'Episode') return item;
     if (item.type == 'Series') {
-      if (_vm.nextUp != null) {
-        return _vm.nextUp;
-      }
-      if (_vm.seriesEpisodes.isNotEmpty) {
-        try {
-          return _vm.seriesEpisodes.firstWhere((e) => !e.isPlayed);
-        } catch (_) {
-          return _vm.seriesEpisodes.first;
-        }
-      }
+      return _vm.nextUp ?? _vm.seriesFallbackEpisode;
     } else if (item.type == 'Season') {
       if (_vm.episodes.isNotEmpty) {
         return _vm.episodes.first;
@@ -4989,13 +4980,12 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
       }
     } else {
       episode = _vm.nextUp;
-      if (episode == null && _vm.seriesEpisodes.isNotEmpty) {
-        try {
-          episode = _vm.seriesEpisodes.firstWhere((e) => !e.isPlayed);
-        } catch (_) {
-          episode = _vm.seriesEpisodes.first;
-          final s = episode.parentIndexNumber ?? 1;
-          final e = episode.indexNumber ?? 1;
+      final fallback = _vm.seriesFallbackEpisode;
+      if (episode == null && fallback != null) {
+        episode = fallback;
+        if (fallback.isPlayed) {
+          final s = fallback.parentIndexNumber ?? 1;
+          final e = fallback.indexNumber ?? 1;
           customLabel = l10n.rewatchSeasonEpisode(s, e);
         }
       }

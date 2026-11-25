@@ -12,6 +12,7 @@ import 'package:moonfin/data/repositories/offline_repository.dart';
 import 'package:moonfin/data/repositories/tmdb_repository.dart';
 import 'package:moonfin/data/services/row_data_source.dart';
 import 'package:moonfin/data/services/plugin_sync_service.dart';
+import 'package:moonfin/data/services/series_episodes_store.dart';
 import 'package:moonfin/data/viewmodels/item_detail_view_model.dart';
 import 'package:moonfin/auth/repositories/user_repository.dart';
 import 'package:moonfin/l10n/app_localizations.dart';
@@ -742,6 +743,58 @@ void main() {
       tester.getRect(find.byKey(const ValueKey('minimalist-episode-name'))),
       before,
     );
+  });
+
+  testWidgets('the next episode page draws the kept rail at once', (
+    tester,
+  ) async {
+    GetIt.instance.registerSingleton<SeriesEpisodesStore>(SeriesEpisodesStore());
+    Map<String, dynamic> episodePage() => itemData('Episode')
+      ..['IndexNumber'] = 2
+      ..['ParentIndexNumber'] = 1
+      ..['SeriesId'] = 'kept-series';
+    final rail = find.byKey(const ValueKey('minimalist-episode-rail'));
+    final name = find.byKey(const ValueKey('minimalist-episode-name'));
+    when(
+      () => itemsApi.getEpisodes(
+        any(),
+        seasonId: any(named: 'seasonId'),
+        fields: any(named: 'fields'),
+      ),
+    ).thenAnswer(
+      (_) async => {
+        'Items': [
+          for (var s = 1; s <= 2; s++)
+            for (var e = 1; e <= 6; e++)
+              {
+                'Id': s == 1 && e == 2 ? 'item-1' : 's${s}e$e',
+                'Name': 'Episode $e',
+                'Type': 'Episode',
+                'IndexNumber': e,
+                'ParentIndexNumber': s,
+                'SeriesId': 'kept-series',
+              },
+        ],
+      },
+    );
+    await pumpContent(tester, viewModel('Episode', data: episodePage()),
+        size: landscape);
+    expect(rail, findsOneWidget);
+    final settled = tester.getRect(name);
+
+    final slow = Completer<Map<String, dynamic>>();
+    when(
+      () => itemsApi.getEpisodes(
+        any(),
+        seasonId: any(named: 'seasonId'),
+        fields: any(named: 'fields'),
+      ),
+    ).thenAnswer((_) => slow.future);
+    await pumpContent(tester, viewModel('Episode', data: episodePage()),
+        size: landscape);
+
+    expect(rail, findsOneWidget);
+    expect(tester.getRect(name), settled);
   });
 
   testWidgets('an episode shows its own still beside the title', (
