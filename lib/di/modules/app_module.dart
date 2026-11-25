@@ -20,6 +20,7 @@ import '../../data/repositories/media_bar_repository.dart';
 import '../../data/repositories/offline_repository.dart';
 import '../../data/services/blocked_content_gate.dart';
 import '../../data/services/library_scope_service.dart';
+import '../../data/services/media_bar_cache_store.dart';
 import '../../data/services/media_server_client_factory.dart';
 import '../../data/repositories/seerr_repository.dart';
 import '../../data/repositories/tmdb_repository.dart';
@@ -388,6 +389,7 @@ void _registerUserScopedSingletons() {
       _getIt<MdbListRepository>(),
       _getIt<UserPreferences>(),
       _getIt<MediaServerClient>(),
+      cacheStore: MediaBarCacheStore(),
     ),
   );
   _getIt.registerLazySingleton(

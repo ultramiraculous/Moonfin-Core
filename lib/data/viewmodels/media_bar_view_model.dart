@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:server_core/server_core.dart';
@@ -10,6 +12,7 @@ import '../models/media_bar_slide_item.dart';
 import '../models/media_bar_state.dart';
 import '../repositories/mdblist_repository.dart';
 import '../repositories/media_bar_repository.dart';
+import '../services/media_bar_cache_store.dart';
 import '../services/plugin_sync_service.dart';
 
 class MediaBarViewModel extends ChangeNotifier {
@@ -17,6 +20,8 @@ class MediaBarViewModel extends ChangeNotifier {
   final MdbListRepository _mdbListRepository;
   final UserPreferences _prefs;
   final MediaServerClient _client;
+  final MediaBarCacheStore? _cacheStore;
+  bool _triedCache = false;
 
   MediaBarState _state = const MediaBarLoading();
   MediaBarState get state => _state;
@@ -120,8 +125,9 @@ class MediaBarViewModel extends ChangeNotifier {
     this._repository,
     this._mdbListRepository,
     this._prefs,
-    this._client,
-  ) {
+    this._client, {
+    this._cacheStore,
+  }) {
     _lastMode = UserPreferences.normalizeMediaBarMode(
       _prefs.get(UserPreferences.mediaBarMode),
     );
@@ -167,6 +173,40 @@ class MediaBarViewModel extends ChangeNotifier {
     _prefs.get(UserPreferences.recentlyReleasedSeriesType),
   ].join('|');
 
+  String _cacheKey() => [
+    _client.baseUrl,
+    _client.userId ?? '',
+    _lastMode,
+    _lastContentType,
+    _lastItemCount,
+    _lastSources,
+  ].join('#');
+
+  /// Paints the slides saved by the last launch while the first load runs.
+  Future<void> _seedFromCache() async {
+    final store = _cacheStore!;
+    _triedCache = true;
+    List<MediaBarSlideItem>? cached;
+    try {
+      cached = await store.read(_cacheKey(), token: _client.accessToken);
+    } catch (_) {}
+    if (cached == null || _state is! MediaBarLoading) return;
+    _state = MediaBarReady(cached);
+    notifyListeners();
+  }
+
+  void _saveCache(MediaBarState state) {
+    final store = _cacheStore;
+    if (store == null) return;
+    final items = switch (state) {
+      MediaBarReady(:final items) => items,
+      MediaBarDisabled() => const <MediaBarSlideItem>[],
+      _ => null,
+    };
+    if (items == null) return;
+    unawaited(store.write(_cacheKey(), items, token: _client.accessToken));
+  }
+
   void _onPrefsChanged() {
     final mode = UserPreferences.normalizeMediaBarMode(
       _prefs.get(UserPreferences.mediaBarMode),
@@ -208,6 +248,7 @@ class MediaBarViewModel extends ChangeNotifier {
     }
     _isLoading = true;
     final loadGeneration = ++_loadGeneration;
+    if (_cacheStore != null && !_triedCache) await _seedFromCache();
     final previousReady = _state is MediaBarReady
         ? _state as MediaBarReady
         : null;
@@ -232,6 +273,7 @@ class MediaBarViewModel extends ChangeNotifier {
         _state = previousReady;
       } else {
         _state = nextState;
+        _saveCache(nextState);
       }
 
       notifyListeners();
