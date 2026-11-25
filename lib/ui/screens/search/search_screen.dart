@@ -1049,6 +1049,7 @@ class _SearchScreenState extends State<SearchScreen>
                             controller: _searchController,
                             focusNode: _searchInputFocus,
                             autofocus: true,
+                            textInputAction: TextInputAction.search,
                             onSubmitted: _onSearchSubmitted,
                             style: TextStyle(
                               color: AppColorScheme.onSurface,
@@ -1506,6 +1507,7 @@ class _SearchScreenState extends State<SearchScreen>
       fallback: 32,
       builder: (context, bottom) => ListView(
         controller: _resultsScrollController,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(horizontalPadding, 8, 0, bottom),
         children: rows,
       ),
@@ -1733,6 +1735,7 @@ class _SearchScreenState extends State<SearchScreen>
 
         return GridView.builder(
           controller: _resultsScrollController,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
             12,
