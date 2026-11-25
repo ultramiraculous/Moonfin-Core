@@ -115,6 +115,12 @@ class _MinimalistEpisodesSectionState extends State<MinimalistEpisodesSection> {
   List<AggregatedItem> get _allEpisodes =>
       _isSeason ? _vm.episodes : _vm.seriesEpisodes;
 
+  /// Whether the episodes are still loading, rather than there being none.
+  bool get _episodesPending {
+    if (_isSeason) return !_vm.episodesLoaded;
+    return (_isSeries || _isEpisode) && !_vm.seriesEpisodesLoaded;
+  }
+
   List<int> _seasonNumbers(List<AggregatedItem> episodes) => episodes
       .map((episode) => episode.parentIndexNumber)
       .whereType<int>()
@@ -220,11 +226,37 @@ class _MinimalistEpisodesSectionState extends State<MinimalistEpisodesSection> {
     return budget - chrome - _titleBlockHeight(context, double.infinity);
   }
 
+  /// Reserve room for the season tabs and rail while the episodes load.
+  Widget _placeholder(BuildContext context) {
+    final showTabs = _isSeason
+        ? false
+        : _isSeries && _vm.seasonsLoaded
+        ? _vm.seasons.length > 1
+        : true;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = minimalistEpisodeCardWidth(
+          constraints.maxWidth,
+          landscape: widget.landscape,
+          maxStillHeight: _stillBudget(context, showTabs),
+          prefs: widget.prefs,
+        );
+        final tabs = showTabs ? SlidingPillTabs.height + _kTabsToRail : 0.0;
+        return SizedBox(
+          key: const ValueKey('minimalist-episodes-placeholder'),
+          height: tabs + _railHeight(context, cardWidth),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final all = _allEpisodes;
-    if (all.isEmpty) return const SizedBox.shrink();
+    if (all.isEmpty) {
+      return _episodesPending ? _placeholder(context) : const SizedBox.shrink();
+    }
 
     final seasons = _seasonNumbers(all);
     // Landing on an episode opens its own season rather than the first one.
