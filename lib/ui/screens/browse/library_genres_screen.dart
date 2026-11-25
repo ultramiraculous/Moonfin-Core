@@ -21,6 +21,7 @@ import '../../widgets/genre_grid_card.dart';
 import '../../widgets/focus/context_menu_sheet.dart';
 import '../../widgets/skeleton/skeleton_library_grid.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../data/services/genre_list_store.dart';
 
 Color get _navyBackground => AppColorScheme.background;
 const _horizontalPadding = 60.0;
@@ -109,18 +110,13 @@ class _LibraryGenresScreenState extends State<LibraryGenresScreen> {
       _collectionType = (parentData['CollectionType'] as String?)
           ?.toLowerCase();
 
-      final response = await _client.itemsApi.getGenres(
+      final items = await GenreListStore.fetch(
+        _client,
+        GenreListKind.genres,
         parentId: widget.libraryId,
-        userId: _client.userId,
-        sortBy: 'SortName',
-        sortOrder: 'Ascending',
-        recursive: true,
-        fields: 'ItemCounts,PrimaryImageTag,ImageTags,BackdropImageTags,PrimaryImageAspectRatio',
       );
-
-      final items = (response['Items'] as List?) ?? [];
       final temp = items.map((g) {
-        final data = g as Map<String, dynamic>;
+        final data = g;
         final count = data['ChildCount'] as int? ??
             (data['MovieCount'] as int? ?? 0) +
                 (data['SeriesCount'] as int? ?? 0) +

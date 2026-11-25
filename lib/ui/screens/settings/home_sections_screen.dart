@@ -33,6 +33,7 @@ import '../../widgets/settings/settings_section_header.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../util/signed_in_server_features.dart';
 import 'settings_app_bar.dart';
+import '../../../data/services/genre_list_store.dart';
 
 const double _kHomeSectionTileRadius = 16;
 const EdgeInsets _kHomeSectionTileContentPadding = EdgeInsets.symmetric(
@@ -248,14 +249,12 @@ class _HomeSectionsScreenState extends State<HomeSectionsScreen> {
                 final includeItemTypes = _prefs
                     .get(UserPreferences.genresRowItemFilter)
                     .includeItemTypes;
-                final response = await client.itemsApi.getGenres(
-                  userId: userId,
-                  recursive: true,
-                  limit: 1,
+                final genres = await GenreListStore.fetch(
+                  client,
+                  GenreListKind.genres,
                   includeItemTypes: includeItemTypes,
                 );
-                final total = response['TotalRecordCount'] as int? ?? 0;
-                setEmpty(stableId, total == 0);
+                setEmpty(stableId, genres.isEmpty);
               } catch (_) {}
             }());
             break;
@@ -1105,47 +1104,24 @@ class _HomeSectionsScreenState extends State<HomeSectionsScreen> {
       final includeItemTypes = _prefs
           .get(UserPreferences.genresRowItemFilter)
           .includeItemTypes;
-      const pageSize = 250;
-      var startIndex = 0;
-      int? total;
-      final all = <_DiscoveredGenreRow>[];
-
-      while (true) {
-        final response = await client.itemsApi.getGenres(
-          sortBy: 'SortName',
-          sortOrder: 'Ascending',
-          recursive: true,
-          startIndex: startIndex,
-          limit: pageSize,
-          fields: 'ItemCounts',
-          includeItemTypes: includeItemTypes,
-        );
-        total ??= response['TotalRecordCount'] as int?;
-        final items = (response['Items'] as List?) ?? const [];
-        if (items.isEmpty) break;
-
-        all.addAll(
-          items
-              .whereType<Map<String, dynamic>>()
-              .where(
-                (item) =>
-                    (item['Id']?.toString() ?? '').isNotEmpty &&
-                    (item['Name']?.toString() ?? '').isNotEmpty,
-              )
-              .map(
-                (item) => _DiscoveredGenreRow(
-                  id: item['Id'].toString(),
-                  name: item['Name'].toString(),
-                ),
-              ),
-        );
-
-        startIndex += items.length;
-        if (items.length < pageSize) break;
-        if (total != null && startIndex >= total) break;
-      }
-
-      return all;
+      final genres = await GenreListStore.fetch(
+        client,
+        GenreListKind.genres,
+        includeItemTypes: includeItemTypes,
+      );
+      return genres
+          .where(
+            (item) =>
+                (item['Id']?.toString() ?? '').isNotEmpty &&
+                (item['Name']?.toString() ?? '').isNotEmpty,
+          )
+          .map(
+            (item) => _DiscoveredGenreRow(
+              id: item['Id'].toString(),
+              name: item['Name'].toString(),
+            ),
+          )
+          .toList(growable: false);
     } catch (_) {
       return const <_DiscoveredGenreRow>[];
     }

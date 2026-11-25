@@ -19,6 +19,7 @@ import '../../widgets/settings/preference_tiles.dart';
 import '../detail/playlist_sort_filter_bar.dart';
 import '../../../util/signed_in_server_features.dart';
 import 'settings_app_bar.dart';
+import '../../../data/services/genre_list_store.dart';
 
 class HomeRowTogglesScreen extends StatefulWidget {
   const HomeRowTogglesScreen({super.key});
@@ -1008,29 +1009,21 @@ class _StudioSelectionDialogState extends State<StudioSelectionDialog> {
   Future<void> _fetchStudios() async {
     try {
       final client = GetIt.instance<MediaServerClient>();
-      final userId = client.userId;
-
       final results = await Future.wait([
-        client.itemsApi.getStudios(
-          userId: userId,
-          recursive: true,
+        GenreListStore.fetch(
+          client,
+          GenreListKind.studios,
           includeItemTypes: const ['Movie'],
-          sortBy: 'SortName',
-          sortOrder: 'Ascending',
-          fields: 'ChildCount,ItemCounts,PrimaryImageTag',
         ),
-        client.itemsApi.getStudios(
-          userId: userId,
-          recursive: true,
+        GenreListStore.fetch(
+          client,
+          GenreListKind.studios,
           includeItemTypes: const ['Series'],
-          sortBy: 'SortName',
-          sortOrder: 'Ascending',
-          fields: 'ChildCount,ItemCounts,PrimaryImageTag',
         ),
       ]);
 
-      final movieItems = (results[0]['Items'] as List? ?? []).cast<Map<String, dynamic>>();
-      final tvItems = (results[1]['Items'] as List? ?? []).cast<Map<String, dynamic>>();
+      final movieItems = results[0];
+      final tvItems = results[1];
 
       final Map<String, Map<String, dynamic>> studioMap = {};
 

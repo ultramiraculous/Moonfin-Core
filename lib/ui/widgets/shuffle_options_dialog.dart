@@ -8,6 +8,7 @@ import 'package:server_core/server_core.dart';
 import '../../data/models/aggregated_item.dart';
 import '../../data/models/aggregated_library.dart';
 import '../../data/repositories/user_views_repository.dart';
+import '../../data/services/genre_list_store.dart';
 
 const String _kShuffleOverlayItemFields =
     'Name,Type,UserData,RunTimeTicks,ProductionYear,ImageTags,BackdropImageTags,'
@@ -261,18 +262,12 @@ Future<List<String>> fetchShuffleGenres({required String contentType}) async {
   final stopwatch = Stopwatch()..start();
   try {
     final client = GetIt.instance<MediaServerClient>();
-    final result = await client.itemsApi.getGenres(
-      userId: client.userId,
-      sortBy: 'SortName',
-      sortOrder: 'Ascending',
-      recursive: true,
-      fields: 'ItemCounts',
+    final items = await GenreListStore.fetch(
+      client,
+      GenreListKind.genres,
       includeItemTypes: _shuffleIncludeItemTypes(contentType),
     );
-    final items = (result['Items'] as List?) ?? const <dynamic>[];
     return items
-        .whereType<Map>()
-        .map((item) => item.cast<String, dynamic>())
         .where((item) => genreMatchesShuffleContent(item, contentType))
         .map((item) => item['Name'] as String? ?? '')
         .where((name) => name.isNotEmpty)

@@ -25,11 +25,11 @@ import '../../widgets/focus/context_menu_sheet.dart';
 import '../../widgets/quick_return_wrapper.dart';
 import '../../widgets/skeleton/skeleton_library_grid.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../data/services/genre_list_store.dart';
 
 Color get _navyBackground => AppColorScheme.background;
 const _horizontalPadding = 60.0;
 const _kCompactBreakpoint = 600.0;
-const _genresPageSize = 200;
 const _initialArtworkBatch = 12;
 const _backgroundArtworkConcurrency = 4;
 
@@ -109,34 +109,15 @@ class _AllGenresScreenState extends State<AllGenresScreen> {
     final token = ++_loadToken;
     try {
       _usedArtworkIds.clear();
-      final items = <dynamic>[];
-      var startIndex = 0;
-      int? total;
-
-      while (true) {
-        final response = await _client.itemsApi.getGenres(
-          sortBy: 'SortName',
-          sortOrder: 'Ascending',
-          recursive: true,
-          startIndex: startIndex,
-          limit: _genresPageSize,
-          fields: 'ItemCounts,PrimaryImageTag,ImageTags,BackdropImageTags,PrimaryImageAspectRatio',
-          includeItemTypes: _videoGenreItemTypes,
-        );
-
-        total ??= response['TotalRecordCount'] as int?;
-        final pageItems = (response['Items'] as List?) ?? const [];
-        if (pageItems.isEmpty) break;
-        items.addAll(pageItems);
-
-        startIndex += pageItems.length;
-        if (pageItems.length < _genresPageSize) break;
-        if (total != null && startIndex >= total) break;
-      }
+      final items = await GenreListStore.fetch(
+        _client,
+        GenreListKind.genres,
+        includeItemTypes: _videoGenreItemTypes,
+      );
 
       final temp = items
           .map((g) {
-            final data = g as Map<String, dynamic>;
+            final data = g;
             final itemCount = browsableGenreCount(
               data,
               normalizedItemTypes: _videoGenreItemTypes,

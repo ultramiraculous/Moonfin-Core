@@ -23,6 +23,7 @@ import 'home_sections_screen.dart';
 import 'ratings_config_screen.dart';
 import 'settings_app_bar.dart';
 import '../../widgets/focus/request_initial_focus.dart';
+import '../../../data/services/genre_list_store.dart';
 
 class MediaBarSettingsScreen extends StatefulWidget {
   const MediaBarSettingsScreen({super.key});
@@ -188,12 +189,8 @@ class _MediaBarSettingsScreenState extends State<MediaBarSettingsScreen> {
     final client = GetIt.instance<MediaServerClient>();
 
     try {
-      final response = await client.itemsApi.getGenres(
-        sortBy: 'SortName',
-        sortOrder: 'Ascending',
-      );
-      final names = (response['Items'] as List? ?? [])
-          .cast<Map<String, dynamic>>()
+      final genres = await GenreListStore.fetch(client, GenreListKind.genres);
+      final names = genres
           .map((item) => (item['Name'] as String? ?? '').trim())
           .where((name) => name.isNotEmpty)
           .toSet();

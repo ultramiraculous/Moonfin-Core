@@ -17,6 +17,7 @@ import '../../widgets/settings/preference_tiles.dart';
 import '../../widgets/settings/settings_preview_scope.dart';
 import '../../widgets/settings/settings_section_header.dart';
 import 'settings_app_bar.dart';
+import '../../../data/services/genre_list_store.dart';
 
 class ScreensaverSettingsScreen extends StatefulWidget {
   const ScreensaverSettingsScreen({super.key});
@@ -163,12 +164,8 @@ class _ScreensaverSettingsScreenState extends State<ScreensaverSettingsScreen> {
     final client = GetIt.instance<MediaServerClient>();
 
     try {
-      final response = await client.itemsApi.getGenres(
-        sortBy: 'SortName',
-        sortOrder: 'Ascending',
-      );
-      final names = (response['Items'] as List? ?? [])
-          .cast<Map<String, dynamic>>()
+      final genres = await GenreListStore.fetch(client, GenreListKind.genres);
+      final names = genres
           .map((item) => (item['Name'] as String? ?? '').trim())
           .where((name) => name.isNotEmpty)
           .toSet();

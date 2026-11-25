@@ -22,6 +22,9 @@ void main() {
     final itemsApi = _ItemsApi();
     when(
       () => itemsApi.getStudios(
+        parentId: any(named: 'parentId'),
+        startIndex: any(named: 'startIndex'),
+        limit: any(named: 'limit'),
         userId: any(named: 'userId'),
         recursive: any(named: 'recursive'),
         includeItemTypes: any(named: 'includeItemTypes'),

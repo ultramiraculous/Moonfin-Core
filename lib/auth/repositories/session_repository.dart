@@ -42,6 +42,7 @@ import '../services/silo_household.dart';
 import '../services/silo_token_storage.dart';
 import '../../data/services/achievements_service.dart';
 import '../../data/services/item_membership_service.dart';
+import '../../data/services/genre_list_store.dart';
 import '../../data/services/item_store.dart';
 import '../../data/services/series_episodes_store.dart';
 import '../../data/services/plex_tv_service.dart';
@@ -264,6 +265,9 @@ class SessionRepository {
     }
     if (GetIt.instance.isRegistered<ItemStore>()) {
       GetIt.instance<ItemStore>().clear();
+    }
+    if (GetIt.instance.isRegistered<GenreListStore>()) {
+      GetIt.instance<GenreListStore>().clear();
     }
     if (GetIt.instance.isRegistered<AchievementsService>()) {
       GetIt.instance<AchievementsService>().reset();
@@ -844,6 +848,9 @@ class SessionRepository {
     }
     if (GetIt.instance.isRegistered<ItemStore>()) {
       GetIt.instance<ItemStore>().clear();
+    }
+    if (GetIt.instance.isRegistered<GenreListStore>()) {
+      GetIt.instance<GenreListStore>().clear();
     }
     if (GetIt.instance.isRegistered<SiloWatchPartyManager>()) {
       GetIt.instance<SiloWatchPartyManager>().onSessionChanged(
