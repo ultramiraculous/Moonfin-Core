@@ -724,10 +724,9 @@ class SeerrMediaDetailViewModel extends ChangeNotifier {
       await _repo.ensureInitialized();
       unawaited(_loadPublicSettings());
 
-      SeerrUser? user;
-      try {
-        user = await _repo.getCurrentUser();
-      } catch (_) {}
+      final userFuture = _repo
+          .getCurrentUser()
+          .then<SeerrUser?>((user) => user, onError: (_) => null);
 
       int tmdbId;
       String resolvedMediaType = mediaType;
@@ -770,6 +769,7 @@ class SeerrMediaDetailViewModel extends ChangeNotifier {
       if (resolvedMediaType == 'tv') {
         try {
           final (details, onWatchlist) = await _repo.getTvDetailsWithWatchlist(tmdbId);
+          final user = await userFuture;
           _state = SeerrMediaDetailState(
             tv: details,
             currentUser: user,
@@ -783,6 +783,7 @@ class SeerrMediaDetailViewModel extends ChangeNotifier {
           debugPrint('[SeerrDetail] getTvDetails failed: $e. Attempting fallback to search...');
           final fallbackDetails = await _trySearchFallbackTv(tmdbId, title);
           if (fallbackDetails != null) {
+            final user = await userFuture;
             _state = SeerrMediaDetailState(
               tv: fallbackDetails,
               currentUser: user,
@@ -797,6 +798,7 @@ class SeerrMediaDetailViewModel extends ChangeNotifier {
       } else {
         try {
           final (details, onWatchlist) = await _repo.getMovieDetailsWithWatchlist(tmdbId);
+          final user = await userFuture;
           _state = SeerrMediaDetailState(
             movie: details,
             currentUser: user,
@@ -810,6 +812,7 @@ class SeerrMediaDetailViewModel extends ChangeNotifier {
           debugPrint('[SeerrDetail] getMovieDetails failed: $e. Attempting fallback to search...');
           final fallbackDetails = await _trySearchFallbackMovie(tmdbId, title);
           if (fallbackDetails != null) {
+            final user = await userFuture;
             _state = SeerrMediaDetailState(
               movie: fallbackDetails,
               currentUser: user,
