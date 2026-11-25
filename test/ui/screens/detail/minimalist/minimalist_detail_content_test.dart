@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -694,6 +696,53 @@ void main() {
   });
 
   const landscape = Size(1600, 900);
+
+  testWidgets('the title stays put while the episodes load', (tester) async {
+    final data = itemData('Episode')
+      ..['IndexNumber'] = 2
+      ..['ParentIndexNumber'] = 1
+      ..['SeriesId'] = 'slow-series';
+    final vm = viewModel('Episode', data: data);
+    final episodes = Completer<Map<String, dynamic>>();
+    when(
+      () => itemsApi.getEpisodes(
+        any(),
+        seasonId: any(named: 'seasonId'),
+        fields: any(named: 'fields'),
+      ),
+    ).thenAnswer((_) => episodes.future);
+
+    await pumpContent(tester, vm, size: landscape);
+    expect(find.byKey(const ValueKey('minimalist-episode-rail')), findsNothing);
+    final before = tester.getRect(
+      find.byKey(const ValueKey('minimalist-episode-name')),
+    );
+
+    episodes.complete({
+      'Items': [
+        for (var s = 1; s <= 2; s++)
+          for (var e = 1; e <= 6; e++)
+            {
+              'Id': s == 1 && e == 2 ? 'item-1' : 's${s}e$e',
+              'Name': 'Episode $e',
+              'Type': 'Episode',
+              'IndexNumber': e,
+              'ParentIndexNumber': s,
+              'SeriesId': 'slow-series',
+            },
+      ],
+    });
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(
+      find.byKey(const ValueKey('minimalist-episode-rail')),
+      findsOneWidget,
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('minimalist-episode-name'))),
+      before,
+    );
+  });
 
   testWidgets('an episode shows its own still beside the title', (
     tester,
