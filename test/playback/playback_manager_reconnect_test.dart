@@ -10,7 +10,9 @@ class _TestBackend extends Fake implements PlayerBackend {
   final positions = StreamController<Duration>.broadcast(sync: true);
   final errors = StreamController<Map<String, dynamic>>.broadcast(sync: true);
   final playingChanges = StreamController<bool>.broadcast(sync: true);
+  final bufferingChanges = StreamController<bool>.broadcast(sync: true);
   final List<Duration> playStarts = <Duration>[];
+  final List<Object?> playAutoPlays = <Object?>[];
   final List<Duration> seeks = <Duration>[];
   final List<StreamCredentials> credentialUpdates = <StreamCredentials>[];
 
@@ -20,12 +22,18 @@ class _TestBackend extends Fake implements PlayerBackend {
   /// Whether the engine can change an open stream's credentials.
   bool takesCredentialsLive = true;
   bool playing = false;
+  bool buffering = false;
   Duration currentPosition = Duration.zero;
 
   /// Reports the player actually playing, or not, as an engine does.
   void emitPlaying(bool value) {
     playing = value;
     playingChanges.add(value);
+  }
+
+  void emitBuffering(bool value) {
+    buffering = value;
+    bufferingChanges.add(value);
   }
 
   void emitPosition(Duration position) {
@@ -58,7 +66,7 @@ class _TestBackend extends Fake implements PlayerBackend {
   double get playbackSpeed => 1.0;
 
   @override
-  bool get isBuffering => false;
+  bool get isBuffering => buffering;
 
   @override
   Stream<Duration> get positionStream => positions.stream;
@@ -73,7 +81,7 @@ class _TestBackend extends Fake implements PlayerBackend {
   Stream<bool> get playingStream => playingChanges.stream;
 
   @override
-  Stream<bool> get bufferingStream => const Stream<bool>.empty();
+  Stream<bool> get bufferingStream => bufferingChanges.stream;
 
   @override
   Stream<bool> get completedStream => const Stream<bool>.empty();
@@ -107,6 +115,7 @@ class _TestBackend extends Fake implements PlayerBackend {
     Duration startPosition = Duration.zero,
   }) async {
     playStarts.add(startPosition);
+    playAutoPlays.add(mediaItem is Map ? mediaItem['autoPlay'] : null);
     currentPosition = startPosition;
     playing = true;
     final error = errorWhileOpening;
@@ -958,6 +967,179 @@ void main() {
         });
         async.flushMicrotasks();
         expect(manager.isReconnecting, isFalse);
+      });
+    });
+  });
+
+  group('a stream stuck after the app returns', () {
+    /// The player as the engine leaves it while its own reload hangs: still
+    /// loading, nothing playing.
+    void stick(_TestBackend backend) {
+      backend.emitPlaying(false);
+      backend.emitBuffering(true);
+    }
+
+    test('play reopens it at the position with a fresh resolve', () {
+      final resolver = _Resolver();
+      _withPlayback(resolver, (async, manager, backend, service) {
+        manager.noteReturnedToForeground();
+        stick(backend);
+        async.elapse(const Duration(seconds: 6));
+
+        unawaited(manager.resume());
+        async.elapse(const Duration(seconds: 1));
+
+        expect(resolver.requests.single.position, const Duration(minutes: 20));
+        expect(backend.playAutoPlays.last, isTrue);
+        expect(manager.isReconnecting, isFalse);
+        expect(manager.bringupState.phase, PlaybackBringupPhase.ready);
+      });
+    });
+
+    test('the check on return keeps a paused viewer paused', () {
+      final resolver = _Resolver();
+      _withPlayback(resolver, (async, manager, backend, service) {
+        unawaited(manager.pause());
+        async.flushMicrotasks();
+        manager.noteReturnedToForeground();
+        stick(backend);
+        async.elapse(const Duration(seconds: 15));
+
+        expect(manager.reopenIfStuck(), isTrue);
+        async.elapse(const Duration(seconds: 1));
+
+        expect(resolver.requests, hasLength(1));
+        expect(backend.playAutoPlays.last, isFalse);
+      });
+    });
+
+    test('the check on return keeps a playing viewer playing', () {
+      final resolver = _Resolver();
+      _withPlayback(resolver, (async, manager, backend, service) {
+        backend.emitPlaying(true);
+        manager.noteReturnedToForeground();
+        stick(backend);
+        async.elapse(const Duration(seconds: 15));
+
+        expect(manager.reopenIfStuck(), isTrue);
+        async.elapse(const Duration(seconds: 1));
+
+        expect(resolver.requests, hasLength(1));
+        expect(backend.playAutoPlays.last, isTrue);
+      });
+    });
+
+    test('play resumes in place while it has only just started loading', () {
+      final resolver = _Resolver();
+      _withPlayback(resolver, (async, manager, backend, service) {
+        manager.noteReturnedToForeground();
+        stick(backend);
+        async.elapse(const Duration(seconds: 2));
+
+        unawaited(manager.resume());
+        async.elapse(const Duration(seconds: 2));
+
+        expect(resolver.requests, isEmpty);
+        expect(backend.playing, isTrue);
+      });
+    });
+
+    test('play resumes in place on a player that is only buffering', () {
+      final resolver = _Resolver();
+      _withPlayback(resolver, (async, manager, backend, service) {
+        unawaited(manager.pause());
+        stick(backend);
+        async.elapse(const Duration(seconds: 30));
+
+        unawaited(manager.resume());
+        async.elapse(const Duration(seconds: 2));
+
+        expect(resolver.requests, isEmpty);
+        expect(backend.playing, isTrue);
+      });
+    });
+
+    test('buffering that starts well after the return is not stuck', () {
+      final resolver = _Resolver();
+      _withPlayback(resolver, (async, manager, backend, service) {
+        manager.noteReturnedToForeground();
+        async.elapse(const Duration(seconds: 10));
+        stick(backend);
+        async.elapse(const Duration(seconds: 10));
+
+        expect(manager.isStuck, isFalse);
+        expect(manager.reopenIfStuck(), isFalse);
+      });
+    });
+
+    test('a stream that played since the return is not stuck', () {
+      final resolver = _Resolver();
+      _withPlayback(resolver, (async, manager, backend, service) {
+        manager.noteReturnedToForeground();
+        backend.emitPlaying(true);
+        stick(backend);
+        async.elapse(const Duration(seconds: 15));
+
+        expect(manager.reopenIfStuck(), isFalse);
+        expect(resolver.requests, isEmpty);
+      });
+    });
+
+    test('play reopens a stream that failed after a stall', () {
+      final resolver = _Resolver();
+      _withPlayback(resolver, (async, manager, backend, service) {
+        backend.errors.add({
+          'event': 'playerError',
+          'kind': 'playback_stalled',
+          'recoverable': false,
+        });
+        async.flushMicrotasks();
+        expect(manager.bringupState.phase, PlaybackBringupPhase.failed);
+
+        unawaited(manager.resume());
+        async.elapse(const Duration(seconds: 1));
+
+        expect(resolver.requests, hasLength(1));
+        expect(manager.bringupState.phase, PlaybackBringupPhase.ready);
+      });
+    });
+
+    test('a failed reload after a suspend reconnects', () {
+      final resolver = _Resolver();
+      _withPlayback(resolver, (async, manager, backend, service) {
+        backend.errors.add({
+          'event': 'playerError',
+          'kind': 'backgroundReload',
+          'recoverable': false,
+        });
+        async.flushMicrotasks();
+        expect(manager.isReconnecting, isTrue);
+
+        async.elapse(const Duration(seconds: 1));
+
+        expect(resolver.requests.single.position, const Duration(minutes: 20));
+        expect(manager.bringupState.phase, PlaybackBringupPhase.ready);
+      });
+    });
+
+    test('play pressed while it reconnects plays once it reopens', () {
+      final resolver = _Resolver();
+      _withPlayback(resolver, (async, manager, backend, service) {
+        unawaited(manager.pause());
+        async.flushMicrotasks();
+        backend.errors.add({
+          'event': 'playerError',
+          'kind': 'backgroundReload',
+          'recoverable': false,
+        });
+        async.flushMicrotasks();
+        expect(manager.isReconnecting, isTrue);
+
+        unawaited(manager.resume());
+        async.elapse(const Duration(seconds: 1));
+
+        expect(resolver.requests, hasLength(1));
+        expect(backend.playAutoPlays.last, isTrue);
       });
     });
   });

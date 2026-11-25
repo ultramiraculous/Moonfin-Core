@@ -429,6 +429,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         _watchParty?.controlsPlayback != true,
     close: () => unawaited(_exitPlayback()),
   );
+  bool _wasInBackground = false;
+  Timer? _returnStuckCheck;
   Timer? _tvTemporarySpeedHoldTimer;
   DateTime? _suppressBackNavigationUntil;
   bool _isPlayerMutationInFlight = false;
@@ -1278,6 +1280,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     _endedByServerSub?.cancel();
     _tvBackgroundExitTimer?.cancel();
     _pausedBackgroundExit.dispose();
+    _returnStuckCheck?.cancel();
     FocusManager.instance.removeListener(_restoreOverlayFocus);
     _overlayFocus.removeListener(_onOverlayFocusChanged);
     _overlayFocus.dispose();
@@ -1623,6 +1626,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
+        _wasInBackground = true;
         if (PlatformDetection.isAndroid && !PlatformDetection.isTV) {
           return;
         }
@@ -1655,6 +1659,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         _didHandleBackgroundSuspend = false;
         _cancelTvBackgroundExit();
         if (_consumeStaleSuspend()) return;
+        if (_wasInBackground) {
+          _wasInBackground = false;
+          _manager.noteReturnedToForeground();
+          _scheduleReturnStuckCheck();
+        }
         _didRequestIosPiPForBackground = false;
         if (PlatformDetection.isIOS && _isInPiP) {
           _pipService.enableAutoPiP(false);
@@ -1668,6 +1677,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       case AppLifecycleState.detached:
         break;
     }
+  }
+
+  /// Reopens the stream if it is still stuck 15 s after the app returns.
+  void _scheduleReturnStuckCheck() {
+    _returnStuckCheck?.cancel();
+    _returnStuckCheck = Timer(const Duration(seconds: 15), () {
+      _returnStuckCheck = null;
+      if (!mounted || _isStopping || _castOwnsTransport) return;
+      _manager.reopenIfStuck();
+    });
   }
 
   void _tryStartIosPiPForBackground() {
@@ -3569,7 +3588,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       return;
     }
     final rewindMs = _prefs.get(UserPreferences.unpauseRewindDuration);
-    if (rewindMs > 0) {
+    if (rewindMs > 0 && !_manager.isStuck) {
       final rewind = Duration(milliseconds: rewindMs);
       final current = _transportPosition;
       final target = current > rewind ? current - rewind : Duration.zero;

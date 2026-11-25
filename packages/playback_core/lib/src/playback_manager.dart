@@ -379,6 +379,14 @@ class PlaybackManager implements AudioOwnable {
   Timer? _reconnectRetry;
   Timer? _reconnectProvenTimer;
   final _reconnectingController = StreamController<bool>.broadcast();
+
+  /// When the player started buffering without playing.
+  DateTime? _stalledSince;
+
+  /// When the app last came back to the foreground, until playback runs again.
+  DateTime? _returnedToForegroundAt;
+  static const _stuckAfter = Duration(seconds: 5);
+  static const _returnLoadWindow = Duration(seconds: 3);
   bool _liveRecoveryInFlight = false;
   Timer? _liveRecoveryRetry;
 
@@ -489,6 +497,11 @@ class PlaybackManager implements AudioOwnable {
   /// Marks the first frame seen, clears the recovery status, and drops any
   /// retry still waiting to fire -- the channel does not need it any more.
   void _onProgressStreamsUpdated() {
+    if (state.isBuffering && !state.isPlaying) {
+      _stalledSince ??= clock();
+    } else {
+      _stalledSince = null;
+    }
     if (!_isActuallyPlaying) {
       // A reconnect earns its budget back with continuous playback: a pause
       // or a stall starts the count again (see [_armReconnectProven]).
@@ -496,6 +509,7 @@ class PlaybackManager implements AudioOwnable {
       _reconnectProvenTimer = null;
       return;
     }
+    _returnedToForegroundAt = null;
     _liveFrameSeenSinceOpen = true;
     _setLiveRecoveryStatus(null);
     if (_liveRecoveryRetry?.isActive ?? false) {
@@ -2379,6 +2393,38 @@ class PlaybackManager implements AudioOwnable {
       !_isOfflinePlayback &&
       !_currentItemIsLive;
 
+  /// Marks the app as back in the foreground, for [isStuck].
+  void noteReturnedToForeground() {
+    _returnedToForegroundAt = clock();
+  }
+
+  /// Whether the last open failed, or the player has been loading without
+  /// playing since the app came back to the foreground.
+  bool get isStuck {
+    if (_bringupState.phase == PlaybackBringupPhase.failed) return true;
+    final returnedAt = _returnedToForegroundAt;
+    final stalledSince = _stalledSince;
+    if (returnedAt == null || stalledSince == null) return false;
+    if (!stalledSince.isBefore(returnedAt.add(_returnLoadWindow))) {
+      return false;
+    }
+    final since = stalledSince.isAfter(returnedAt) ? stalledSince : returnedAt;
+    return clock().difference(since) >= _stuckAfter;
+  }
+
+  /// Reopens the stream at its position with a fresh resolve when [isStuck],
+  /// keeping the viewer's play or pause. Returns whether a reopen is under way.
+  bool reopenIfStuck() {
+    if (_reconnecting) return true;
+    if (_waitingForMedia ||
+        !isStuck ||
+        !_canReconnect(_currentResolution ?? _lastPlaybackResolution)) {
+      return false;
+    }
+    _beginReconnect('stuck');
+    return true;
+  }
+
   void _setReconnecting(bool value) {
     if (_reconnecting == value) return;
     _reconnecting = value;
@@ -2712,11 +2758,14 @@ class PlaybackManager implements AudioOwnable {
     }
     _lastPlayerErrorKind = kind;
 
-    // The connection failed, not the stream: the network dropped, or the
-    // server refused credentials that lapsed. Reopening it where it was is
-    // what brings it back, so it is not a reason to change the route. An
-    // error before the stream first plays is left to the startup handling.
-    if ((kind == 'network' || kind == 'source_refused') &&
+    // The connection failed, not the stream: the network dropped, the
+    // server refused credentials that lapsed, or the stream the player
+    // reopened after a suspend is gone. Reopening it where it was is what
+    // brings it back, so it is not a reason to change the route. An error
+    // before the stream first plays is left to the startup handling.
+    if ((kind == 'network' ||
+            kind == 'source_refused' ||
+            kind == 'backgroundReload') &&
         !_waitingForMedia &&
         _canReconnect(resolution)) {
       // The generic error that follows is absorbed by the reconnect.
@@ -4431,6 +4480,7 @@ class PlaybackManager implements AudioOwnable {
     _viewerPaused = false;
     _viewerPausedAt = null;
     if (await _maybeIntercept(TransportAction.resume)) return;
+    if (reopenIfStuck()) return;
     // A stream the server drops while paused is opened again where it was,
     // in its session, instead of failing on the closed stream.
     final current = _currentResolution;

@@ -183,6 +183,21 @@ class _Manager extends PlaybackManager {
     await super.resume();
   }
 
+  int returnsNoted = 0;
+  int stuckChecks = 0;
+
+  @override
+  void noteReturnedToForeground() {
+    returnsNoted++;
+    super.noteReturnedToForeground();
+  }
+
+  @override
+  bool reopenIfStuck() {
+    stuckChecks++;
+    return super.reopenIfStuck();
+  }
+
   @override
   Future<void> seekTo(Duration position) async {
     seeks.add(position);
@@ -297,6 +312,47 @@ void main() {
     router.push('/play');
     await tester.pumpAndSettle();
   }
+
+  group('returning to the app', () {
+    void lifecycle(WidgetTester tester, List<AppLifecycleState> states) {
+      for (final state in states) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+    }
+
+    testWidgets('checks for a stuck stream 15 s after a return from the '
+        'background', (tester) async {
+      await mountPlayer(tester);
+
+      lifecycle(tester, [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]);
+      expect(manager.returnsNoted, 1);
+      await tester.pump(const Duration(seconds: 14));
+      expect(manager.stuckChecks, 0);
+      await tester.pump(const Duration(seconds: 1));
+      expect(manager.stuckChecks, 1);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('leaves a brief inactive moment alone', (tester) async {
+      await mountPlayer(tester);
+
+      lifecycle(tester, [
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]);
+      await tester.pump(const Duration(seconds: 20));
+      expect(manager.returnsNoted, 0);
+      expect(manager.stuckChecks, 0);
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
 
   testWidgets('desktop Escape and Cinema Skip dismiss keys', (tester) async {
     var fullscreen = true;
