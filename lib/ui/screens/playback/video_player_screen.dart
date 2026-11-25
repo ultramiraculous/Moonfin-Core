@@ -59,6 +59,7 @@ import '../../../data/models/trickplay_info.dart';
 import '../../../data/models/trickplay_prefetch_planner.dart';
 import '../../../data/models/trickplay_preview_layout.dart';
 import '../../../data/services/cast/cast_service.dart';
+import '../../../data/services/item_store.dart';
 import '../../../data/services/cast/cast_target.dart';
 import '../../../data/services/cast/native_airplay_channel.dart';
 import '../../../data/services/cast/native_cast_channel.dart';
@@ -2626,9 +2627,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       final series = AggregatedItem(
         id: seriesId,
         serverId: item.serverId,
-        rawData: await _clientForItem(
-          item,
-        ).itemsApi.getItem(seriesId, fields: 'ProviderIds'),
+        rawData: await ItemStore.fetch(_clientForItem(item), seriesId),
       );
       final info = await GetIt.instance<UpcomingEpisodeService>()
           .resolveUpcomingEpisode(
@@ -8170,7 +8169,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       if (item.type == 'Movie' && item.id.isNotEmpty) {
         try {
           final client = _clientForItem(item);
-          final data = await client.itemsApi.getItem(item.id);
+          final data = await ItemStore.fetch(client, item.id);
           final people = (data['People'] as List?)
               ?.whereType<Map>()
               .map((p) => p.cast<String, dynamic>())

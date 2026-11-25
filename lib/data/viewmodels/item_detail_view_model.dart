@@ -15,6 +15,7 @@ import '../models/aggregated_item.dart';
 import '../models/lyrics.dart';
 import '../models/tmdb_item_ref.dart';
 import '../services/blocked_content_gate.dart';
+import '../services/item_store.dart';
 import '../services/row_data_source.dart';
 import '../services/series_episodes_store.dart';
 import '../services/series_track_sync.dart';
@@ -676,7 +677,7 @@ class ItemDetailViewModel extends ChangeNotifier {
       final seriesId = item.seriesId;
       if (seriesId != null && seriesId.isNotEmpty) {
         try {
-          final seriesData = await _client.itemsApi.getItem(seriesId);
+          final seriesData = await ItemStore.fetch(_client, seriesId);
           if (_isDisposed) return;
           final seriesItem = AggregatedItem(
             id: seriesId,
@@ -2793,7 +2794,7 @@ class ItemDetailViewModel extends ChangeNotifier {
 
       if (seriesId != null && season != null && episode != null) {
         try {
-          final seriesData = await _client.itemsApi.getItem(seriesId);
+          final seriesData = await ItemStore.fetch(_client, seriesId);
           final seriesTmdbId = (seriesData['ProviderIds'] as Map?)?['Tmdb']?.toString();
           if (seriesTmdbId != null && seriesTmdbId.isNotEmpty) {
             final rating = await _tmdbRepository.getEpisodeRating(

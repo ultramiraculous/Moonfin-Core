@@ -10,6 +10,7 @@ import '../models/media_bar_slide_item.dart';
 import '../models/media_bar_state.dart';
 import '../repositories/mdblist_repository.dart';
 import '../repositories/media_bar_repository.dart';
+import '../services/item_store.dart';
 import '../services/plugin_sync_service.dart';
 
 class MediaBarViewModel extends ChangeNotifier {
@@ -76,7 +77,7 @@ class MediaBarViewModel extends ChangeNotifier {
     if (!_bookshelfDetailInFlight.add(itemId)) return;
 
     try {
-      final raw = await _client.itemsApi.getItem(itemId);
+      final raw = await ItemStore.fetch(_client, itemId);
       if (raw.isEmpty) return;
       final aggregated = AggregatedItem(
         id: itemId,
@@ -101,7 +102,7 @@ class MediaBarViewModel extends ChangeNotifier {
     if (!_galleryDetailInFlight.add(itemId)) return;
 
     try {
-      final raw = await _client.itemsApi.getItem(itemId);
+      final raw = await ItemStore.fetch(_client, itemId);
       if (raw.isEmpty) return;
       final aggregated = AggregatedItem(
         id: itemId,

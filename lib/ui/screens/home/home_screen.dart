@@ -30,6 +30,7 @@ import '../../../data/repositories/tmdb_repository.dart';
 import '../../../data/repositories/user_views_repository.dart';
 import '../../widgets/seerr/seerr_shortcuts.dart';
 import '../../../data/services/background_service.dart';
+import '../../../data/services/item_store.dart';
 import '../../widgets/modern_row.dart';
 import '../../../data/services/theme_music_service.dart';
 import '../../../data/services/media_server_client_factory.dart';
@@ -2193,7 +2194,7 @@ class _ContentRowsState extends State<_ContentRows>
 
     var remote = ownerId == item.id ? item.rawData['RemoteTrailers'] : null;
     if (remote is! List || remote.isEmpty) {
-      remote = (await client.itemsApi.getItem(ownerId))['RemoteTrailers'];
+      remote = (await ItemStore.fetch(client, ownerId))['RemoteTrailers'];
     }
     if (remote is! List) return null;
     for (final trailer in remote.whereType<Map>()) {
@@ -4524,10 +4525,7 @@ class _ContentRowsState extends State<_ContentRows>
     final client =
         factory.getClientIfExists(item.serverId) ?? factory.getActiveClient();
     try {
-      final raw = await client.itemsApi.getItem(
-        item.id,
-        fields: 'MediaSources,MediaStreams',
-      );
+      final raw = await ItemStore.fetch(client, item.id);
       final badges = technicalDetailsFor(
         AggregatedItem(id: item.id, serverId: item.serverId, rawData: raw),
         null,

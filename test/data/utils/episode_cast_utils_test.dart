@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:moonfin/data/services/item_store.dart';
 import 'package:moonfin/data/utils/episode_cast_utils.dart';
 import 'package:server_core/server_core.dart';
 
@@ -222,6 +224,30 @@ void main() {
 
       expect(cast.length, 1);
       expect(cast.first['Name'], 'Series Actor');
+    });
+
+    test('a second episode of the series reads the kept series item', () async {
+      GetIt.instance.registerSingleton(ItemStore());
+      addTearDown(GetIt.instance.reset);
+      when(() => client.baseUrl).thenReturn('http://server');
+      when(() => client.userId).thenReturn('user');
+      when(() => itemsApi.getItem('series-1')).thenAnswer(
+        (_) async => {
+          'People': [
+            {'Id': 'ser1', 'Name': 'Series Actor', 'Type': 'Actor'},
+          ],
+        },
+      );
+
+      for (var i = 0; i < 2; i++) {
+        final cast = await resolveParentCast(
+          client: client,
+          seriesId: 'series-1',
+        );
+        expect(cast.single['Name'], 'Series Actor');
+      }
+
+      verify(() => itemsApi.getItem('series-1')).called(1);
     });
   });
 }

@@ -2,6 +2,7 @@ import 'package:server_core/server_core.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../l10n/current_app_localizations.dart';
+import '../services/item_store.dart';
 
 /// Formats a role for an episode guest star using localized template.
 String formatGuestStarRole(AppLocalizations l10n, String? role) {
@@ -75,7 +76,7 @@ Future<List<Map<String, dynamic>>> _actorsOf(
   String id,
 ) async {
   try {
-    final data = await client.itemsApi.getItem(id);
+    final data = await ItemStore.fetch(client, id);
     final people = (data['People'] as List?)
         ?.whereType<Map>()
         .map((p) => p.cast<String, dynamic>())
