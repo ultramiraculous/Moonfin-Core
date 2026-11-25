@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:clock/clock.dart';
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:jellyfin_preference/jellyfin_preference.dart';
@@ -48,10 +51,15 @@ class SeerrRepository {
     ),
   );
 
-  int _lastSessionCheckMs = 0;
   int _lastInitAttemptMs = 0;
-  bool _lastSessionValid = false;
-  static const _sessionCacheDurationMs = 5 * 60 * 1000;
+
+  // The signed-in Seerr user, kept for the session. Each clear bumps the
+  // generation so a fetch from the previous session can't store its answer.
+  SeerrUser? _currentUser;
+  DateTime? _currentUserAt;
+  Future<SeerrUser>? _currentUserFetch;
+  int _currentUserGeneration = 0;
+  static const _currentUserMaxAge = Duration(minutes: 10);
 
   int _lastBadgeCountMs = 0;
   int _cachedBadgeCount = 0;
@@ -93,8 +101,10 @@ class SeerrRepository {
   String get _lastConnectionSuccessKey => _userKey('last_connection_success');
 
   void _invalidateSessionCache() {
-    _lastSessionCheckMs = 0;
-    _lastSessionValid = false;
+    _currentUser = null;
+    _currentUserAt = null;
+    _currentUserFetch = null;
+    _currentUserGeneration++;
   }
 
   Future<void> ensureInitialized({bool force = false}) {
@@ -258,20 +268,39 @@ class SeerrRepository {
     }
   }
 
-  Future<bool> isSessionValidCached() async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if ((now - _lastSessionCheckMs) < _sessionCacheDurationMs &&
-        _lastSessionValid) {
-      return true;
+  /// The signed-in Seerr user. A stored copy is returned at once, and one
+  /// older than [_currentUserMaxAge] is refreshed in the background. [fresh]
+  /// always asks Seerr.
+  Future<SeerrUser> getCurrentUser({bool fresh = false}) async {
+    await ensureInitialized();
+    final stored = _currentUser;
+    final storedAt = _currentUserAt;
+    if (fresh || stored == null || storedAt == null) {
+      return _fetchCurrentUser();
     }
-    final valid = await isSessionValid();
-    _lastSessionCheckMs = DateTime.now().millisecondsSinceEpoch;
-    _lastSessionValid = valid;
-    return valid;
+    if (clock.now().difference(storedAt) >= _currentUserMaxAge) {
+      unawaited(_fetchCurrentUser().then((_) {}, onError: (_) {}));
+    }
+    return stored;
   }
 
-  Future<SeerrUser> getCurrentUser() =>
-      _withClient((c) async => SeerrUser.fromJson(await c.getCurrentUser()));
+  Future<SeerrUser> _fetchCurrentUser() =>
+      _currentUserFetch ??= _storeCurrentUser(_currentUserGeneration);
+
+  Future<SeerrUser> _storeCurrentUser(int generation) async {
+    try {
+      final user = await _withClient(
+        (c) async => SeerrUser.fromJson(await c.getCurrentUser()),
+      );
+      if (generation == _currentUserGeneration) {
+        _currentUser = user;
+        _currentUserAt = clock.now();
+      }
+      return user;
+    } finally {
+      if (generation == _currentUserGeneration) _currentUserFetch = null;
+    }
+  }
 
   Future<MoonfinStatusResponse> configureWithMoonfin({
     required String jellyfinBaseUrl,
@@ -284,6 +313,7 @@ class SeerrRepository {
     final proxyConfig = await _proxyConfig(jellyfinBaseUrl, jellyfinToken);
     if (proxyConfig == null) throw StateError('No Moonbase to reach Seerr through');
     _initClient(proxyConfig);
+    _invalidateSessionCache();
 
     final status = await _httpClient!.getMoonfinStatus();
     final effectiveEnabled = status.enabled && status.authenticated;

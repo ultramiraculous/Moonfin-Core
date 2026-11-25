@@ -31,7 +31,7 @@ class _FakeSeerr extends Fake implements SeerrRepository {
   Future<Map<String, dynamic>> getPublicSettings() async => const {};
 
   @override
-  Future<SeerrUser> getCurrentUser() async => SeerrUser(id: 1);
+  Future<SeerrUser> getCurrentUser({bool fresh = false}) async => SeerrUser(id: 1);
 
   @override
   Future<(SeerrMovieDetails, bool)> getMovieDetailsWithWatchlist(

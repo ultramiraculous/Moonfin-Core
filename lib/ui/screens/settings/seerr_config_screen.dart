@@ -168,7 +168,7 @@ class _SeerrConfigScreenState extends State<SeerrConfigScreen> {
       final repo = await GetIt.instance.getAsync<SeerrRepository>();
       status = await repo.checkMoonfinStatus();
       try {
-        final user = await repo.getCurrentUser();
+        final user = await repo.getCurrentUser(fresh: true);
         canManageRequests =
             user.hasPermission(SeerrPermission.manageRequests);
       } catch (_) {
