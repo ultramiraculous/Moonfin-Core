@@ -9,6 +9,7 @@ import 'package:server_core/server_core.dart';
 import '../../preference/preference_constants.dart';
 import '../../preference/user_preferences.dart';
 import '../repositories/item_mutation_repository.dart';
+import '../services/live_tv_store.dart';
 import '../services/user_data_sync.dart';
 import '../models/live_tv_recording_state.dart';
 import '../models/series_recording_episodes.dart';
@@ -669,7 +670,11 @@ class LiveTvGuideViewModel extends ChangeNotifier {
         : _programBatchSize;
     for (var i = 0; i < channels.length; i += size) {
       final batch = channels.sublist(i, min(i + size, channels.length));
-      final fetched = await _fetchPrograms(batch, category: filter);
+      final fetched = await _fetchPrograms(
+        batch,
+        category: filter,
+        fresh: true,
+      );
       if (request != _categoryRequest) return;
       for (final channel in batch) {
         final programs = fetched[channel.id];
@@ -957,24 +962,18 @@ class LiveTvGuideViewModel extends ChangeNotifier {
   }
 
   Future<bool> _fetchChannels(int loadGeneration) async {
-    final revision = userDataSync.revision;
     final session = userDataSync.session;
-    final response = await _client.liveTvApi.getChannels(
-      sortBy: 'SortName',
-      sortOrder: 'Ascending',
-      fields: 'ImageTags,UserData',
-      enableTotalRecordCount: false,
-      userId: _client.userId,
-    );
+    final lineup = await LiveTvChannelStore.fetch(_client);
+    final revision = lineup.revision;
     // A user switch while this was out would publish the old user's favorites.
     if (_disposed ||
         loadGeneration != _loadGeneration ||
         session != userDataSync.session) {
       return false;
     }
-    final items = (response['Items'] as List?) ?? [];
+    final items = lineup.items;
     final fresh = <String, Map<String, dynamic>>{};
-    for (final item in items.cast<Map<String, dynamic>>()) {
+    for (final item in items) {
       final id = item['Id']?.toString();
       final data = item['UserData'];
       if (id != null &&
@@ -994,7 +993,6 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     }
     _channels =
         items
-            .cast<Map<String, dynamic>>()
             .map(GuideChannel.fromRawItem)
             .map((channel) => channel.withSyncedUserData())
             .toList()
@@ -1094,7 +1092,12 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     final ids = List<String>.from(channelIds);
     final generation = ++_programGeneration;
 
-    final response = await _fetchGuide(channelIds: ids, from: from, to: to);
+    final response = await _fetchGuide(
+      channelIds: ids,
+      from: from,
+      to: to,
+      fresh: true,
+    );
     // A later replacement or any cache reset supersedes this reply.
     if (generation != _programGeneration) return;
 
@@ -1370,7 +1373,12 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     final replacements = <String, List<GuideProgram>>{};
     for (var i = 0; i < ids.length; i += _programBatchSize) {
       final chunk = ids.sublist(i, min(i + _programBatchSize, ids.length));
-      final response = await _fetchGuide(channelIds: chunk, from: from, to: to);
+      final response = await _fetchGuide(
+        channelIds: chunk,
+        from: from,
+        to: to,
+        fresh: true,
+      );
       if (_disposed || generation != _programGeneration) return null;
       final parsed = _parsePrograms(response);
       for (final id in chunk) {
@@ -1423,25 +1431,35 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     required DateTime from,
     required DateTime to,
     GuideFilter? category,
-  }) => _client.liveTvApi.getGuide(
-    startDate: from,
-    endDate: to,
+    bool fresh = false,
+  }) => LiveTvProgramStore.guide(
+    _client,
     channelIds: channelIds,
-    isMovie: category == GuideFilter.movies ? true : null,
-    isSeries: category == GuideFilter.series ? true : null,
-    isSports: category == GuideFilter.sports ? true : null,
-    isNews: category == GuideFilter.news ? true : null,
-    isKids: category == GuideFilter.kids ? true : null,
-    fields: _fields,
-    enableTotalRecordCount: false,
-    enableImages: false,
-    enableUserData: false,
-    userId: _client.userId,
+    from: from,
+    to: to,
+    category: category?.name,
+    fresh: fresh,
+    fetch: (ids) => _client.liveTvApi.getGuide(
+      startDate: from,
+      endDate: to,
+      channelIds: ids,
+      isMovie: category == GuideFilter.movies ? true : null,
+      isSeries: category == GuideFilter.series ? true : null,
+      isSports: category == GuideFilter.sports ? true : null,
+      isNews: category == GuideFilter.news ? true : null,
+      isKids: category == GuideFilter.kids ? true : null,
+      fields: _fields,
+      enableTotalRecordCount: false,
+      enableImages: false,
+      enableUserData: false,
+      userId: _client.userId,
+    ),
   );
 
   Future<Map<String, List<GuideProgram>>> _fetchPrograms(
     List<GuideChannel> batch, {
     GuideFilter? category,
+    bool fresh = false,
   }) async {
     if (batch.isEmpty) return {};
     final response = await _fetchGuide(
@@ -1449,6 +1467,7 @@ class LiveTvGuideViewModel extends ChangeNotifier {
       from: _windowStart,
       to: _windowEnd,
       category: category,
+      fresh: fresh,
     );
     final byChannel = _parsePrograms(response);
     if (category != null) {

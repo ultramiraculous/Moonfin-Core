@@ -43,6 +43,7 @@ import '../services/silo_token_storage.dart';
 import '../../data/services/achievements_service.dart';
 import '../../data/services/item_membership_service.dart';
 import '../../data/services/item_store.dart';
+import '../../data/services/live_tv_store.dart';
 import '../../data/services/series_episodes_store.dart';
 import '../../data/services/plex_tv_service.dart';
 import '../../data/services/plugin_sync_service.dart';
@@ -264,6 +265,12 @@ class SessionRepository {
     }
     if (GetIt.instance.isRegistered<ItemStore>()) {
       GetIt.instance<ItemStore>().clear();
+    }
+    if (GetIt.instance.isRegistered<LiveTvChannelStore>()) {
+      GetIt.instance<LiveTvChannelStore>().clear();
+    }
+    if (GetIt.instance.isRegistered<LiveTvProgramStore>()) {
+      GetIt.instance<LiveTvProgramStore>().clear();
     }
     if (GetIt.instance.isRegistered<AchievementsService>()) {
       GetIt.instance<AchievementsService>().reset();
@@ -844,6 +851,12 @@ class SessionRepository {
     }
     if (GetIt.instance.isRegistered<ItemStore>()) {
       GetIt.instance<ItemStore>().clear();
+    }
+    if (GetIt.instance.isRegistered<LiveTvChannelStore>()) {
+      GetIt.instance<LiveTvChannelStore>().clear();
+    }
+    if (GetIt.instance.isRegistered<LiveTvProgramStore>()) {
+      GetIt.instance<LiveTvProgramStore>().clear();
     }
     if (GetIt.instance.isRegistered<SiloWatchPartyManager>()) {
       GetIt.instance<SiloWatchPartyManager>().onSessionChanged(

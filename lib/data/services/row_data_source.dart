@@ -31,6 +31,8 @@ import '../viewmodels/seerr_discover_view_model.dart';
 import '../viewmodels/live_tv_guide_view_model.dart';
 import 'custom_external_lists_service.dart';
 import 'plugin_sync_service.dart';
+import 'live_tv_store.dart';
+import 'user_data_sync.dart';
 
 /// What a home row's See All card opens: the library a Latest row comes from,
 /// or a pinned collection. Null for any other row, merged ones included.
@@ -174,23 +176,16 @@ class RowDataSource {
   static bool _shouldRetryWithoutFields(int statusCode) =>
       statusCode == 400 || statusCode >= 500;
 
-  Future<bool> hasLiveTvChannels() async {
-    final response = await _client.liveTvApi.getChannels(
-      limit: 1,
-      enableTotalRecordCount: true,
-    );
-    final total = response['TotalRecordCount'] as int? ?? 0;
-    return total > 0;
-  }
+  Future<bool> hasLiveTvChannels() async =>
+      (await LiveTvChannelStore.fetch(_client)).items.isNotEmpty;
 
   /// Ordered the same way as the guide, so a channel sits where the user
   /// expects to find it.
   Future<HomeRow> loadFavoritesChannels(String serverId) async {
-    final response = await _client.liveTvApi.getChannels(
-      fields: 'ImageTags,UserData',
-    );
+    final lineup = await LiveTvChannelStore.fetch(_client);
     final pairs = <(GuideChannel, AggregatedItem)>[];
-    for (final item in _parseItems(response, serverId)) {
+    final parsed = _parseItems({'Items': lineup.items}, serverId);
+    for (final item in userDataSync.applyAll(parsed)) {
       if (!item.isFavorite) continue;
       pairs.add((GuideChannel.fromRawItem(item.rawData), item));
     }

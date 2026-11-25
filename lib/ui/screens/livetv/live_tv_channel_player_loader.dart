@@ -11,6 +11,7 @@ import '../../../preference/user_preferences.dart';
 import '../playback/appletv_livetv_player_host_screen.dart';
 import '../playback/external_player_host_screen.dart';
 import 'live_tv_player_screen.dart';
+import '../../../data/services/live_tv_store.dart';
 
 /// Queues [channel] for the external player and says whether the manager
 /// took it there, so the caller opens that instead of the built-in Live TV
@@ -56,17 +57,12 @@ class _LiveTvChannelPlayerLoaderState extends State<LiveTvChannelPlayerLoader> {
 
     var channels = const <GuideChannel>[];
     try {
-      final response = await client.liveTvApi.getChannels(
-        fields: 'ImageTags,UserData',
-        enableTotalRecordCount: false,
-        userId: client.userId,
-      );
-      final items = (response['Items'] as List?) ?? const [];
+      final lineup = await LiveTvChannelStore.fetch(client);
       final sortBy =
           GetIt.instance<UserPreferences>().get(UserPreferences.liveTvChannelSortBy);
-      channels = items
-          .cast<Map<String, dynamic>>()
+      channels = lineup.items
           .map(GuideChannel.fromRawItem)
+          .map((channel) => channel.withSyncedUserData())
           .toList()
         ..sort(LiveTvGuideViewModel.comparatorFor(sortBy));
     } catch (_) {}

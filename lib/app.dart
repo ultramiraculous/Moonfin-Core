@@ -79,6 +79,7 @@ import 'util/focus/gamepad/gamepad_navigation_scope.dart';
 import 'util/focus/gamepad/gamepad_key_synthesizer.dart';
 import 'util/focus/open_popup.dart';
 import 'package:custom_tv_text_field/custom_tv_text_field.dart';
+import 'data/services/live_tv_store.dart';
 
 class MoonfinApp extends StatefulWidget {
   const MoonfinApp({super.key});
@@ -475,14 +476,8 @@ class _GlobalShortcutScopeState extends State<_GlobalShortcutScope>
     _checkingLiveTvShortcut = true;
     try {
       final client = GetIt.instance<MediaServerClient>();
-      final response = await client.liveTvApi.getChannels(
-        limit: 1,
-        enableTotalRecordCount: true,
-      );
-      final items = response['Items'] as List?;
-      final hasChannels =
-          (response['TotalRecordCount'] as int? ?? 0) > 0 ||
-          (items?.isNotEmpty ?? false);
+      final lineup = await LiveTvChannelStore.fetch(client);
+      final hasChannels = lineup.items.isNotEmpty;
       if (!mounted || !hasChannels || !_canTakeLiveTvShortcut()) return;
       appRouter.push(
         key == LogicalKeyboardKey.guide
