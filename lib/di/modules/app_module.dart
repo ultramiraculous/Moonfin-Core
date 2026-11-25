@@ -30,6 +30,7 @@ import '../../util/game_library.dart';
 import '../../data/services/background_service.dart';
 import '../../data/services/access_schedule_service.dart';
 import '../../data/services/app_update_service.dart';
+import '../../data/services/series_episodes_store.dart';
 import '../../data/services/upcoming_episode_service.dart';
 import '../../data/services/cast/airplay_provider.dart';
 import '../../data/services/cast/airplay_command_bridge.dart';
@@ -106,6 +107,7 @@ void resetUserScopedSingletons() {
   unregister<BlockedContentGate>();
   unregister<GameLibraryRegistry>();
   unregister<UpcomingEpisodeService>();
+  unregister<SeriesEpisodesStore>();
   // Watched state is per user, so the next account must not inherit it.
   userDataSync.reset();
   // A Watch Party room belongs to the session that joined it.
@@ -352,6 +354,10 @@ void _registerUserScopedSingletons() {
   _getIt.registerLazySingleton(
     () => UpcomingEpisodeService(),
     dispose: (service) => service.dispose(),
+  );
+  _getIt.registerLazySingleton(
+    () => SeriesEpisodesStore(),
+    dispose: (store) => store.dispose(),
   );
   _getIt.registerLazySingleton(
     () => MdbListRepository(

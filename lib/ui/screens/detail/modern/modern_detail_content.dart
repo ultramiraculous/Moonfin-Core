@@ -1586,7 +1586,7 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
     if (episodes.isEmpty) {
       return _reservedTabBody(
         focusNode: _episodesFirstFocusNode,
-        loaded: _vm.seriesEpisodesLoaded,
+        loaded: _vm.knownSeriesEpisodes != null,
         emptyMessage: l10n.noEpisodesLoaded,
         cardWidth: _landscape ? 240.0 : 180.0,
         heightRatio: 9 / 16,
@@ -2892,11 +2892,12 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
       if (_vm.nextUp != null) {
         return _vm.nextUp;
       }
-      if (_vm.seriesEpisodes.isNotEmpty) {
+      final episodes = _vm.freshSeriesEpisodes;
+      if (episodes != null && episodes.isNotEmpty) {
         try {
-          return _vm.seriesEpisodes.firstWhere((e) => !e.isPlayed);
+          return episodes.firstWhere((e) => !e.isPlayed);
         } catch (_) {
-          return _vm.seriesEpisodes.first;
+          return episodes.first;
         }
       }
     } else if (item.type == 'Season') {
@@ -4989,11 +4990,12 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
       }
     } else {
       episode = _vm.nextUp;
-      if (episode == null && _vm.seriesEpisodes.isNotEmpty) {
+      final episodes = _vm.freshSeriesEpisodes;
+      if (episode == null && episodes != null && episodes.isNotEmpty) {
         try {
-          episode = _vm.seriesEpisodes.firstWhere((e) => !e.isPlayed);
+          episode = episodes.firstWhere((e) => !e.isPlayed);
         } catch (_) {
-          episode = _vm.seriesEpisodes.first;
+          episode = episodes.first;
           final s = episode.parentIndexNumber ?? 1;
           final e = episode.indexNumber ?? 1;
           customLabel = l10n.rewatchSeasonEpisode(s, e);

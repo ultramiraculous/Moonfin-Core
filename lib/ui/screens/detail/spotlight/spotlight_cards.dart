@@ -853,9 +853,7 @@ class _SpotlightCardsBuilder {
   SpotlightCardSpec? _episodeMoreEpisodesCard() {
     // Checked ahead of the load, so a hidden card doesn't fetch every season.
     if (!_shows(DetailSection.moreEpisodes)) return null;
-    if (item.seriesId != null && !vm.seriesEpisodesLoaded) {
-      vm.loadAllSeriesEpisodes();
-    }
+    if (item.seriesId != null) vm.loadAllSeriesEpisodes();
     final allEpisodes = vm.seriesEpisodes;
     final episodes = allEpisodes.isNotEmpty ? allEpisodes : vm.episodes;
     if (episodes.isEmpty) return null;

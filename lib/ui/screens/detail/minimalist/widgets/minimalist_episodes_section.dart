@@ -102,23 +102,7 @@ class _MinimalistEpisodesSectionState extends State<MinimalistEpisodesSection> {
   void _beginEpisodesLoad() {
     if (_loadStarted || !(_isSeries || _isEpisode)) return;
     _loadStarted = true;
-    final viewModel = _vm;
-    if (viewModel.seriesEpisodes.isNotEmpty) return;
-    unawaited(
-      viewModel.loadAllSeriesEpisodes().whenComplete(() {
-        if (!mounted || !identical(_vm, viewModel)) return;
-        setState(() {});
-      }),
-    );
-  }
-
-  List<AggregatedItem> get _allEpisodes =>
-      _isSeason ? _vm.episodes : _vm.seriesEpisodes;
-
-  /// Whether the episodes are still loading, rather than there being none.
-  bool get _episodesPending {
-    if (_isSeason) return !_vm.episodesLoaded;
-    return (_isSeries || _isEpisode) && !_vm.seriesEpisodesLoaded;
+    unawaited(_vm.loadAllSeriesEpisodes());
   }
 
   List<int> _seasonNumbers(List<AggregatedItem> episodes) => episodes
@@ -252,11 +236,23 @@ class _MinimalistEpisodesSectionState extends State<MinimalistEpisodesSection> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final all = _allEpisodes;
-    if (all.isEmpty) {
-      return _episodesPending ? _placeholder(context) : const SizedBox.shrink();
+    if (_isSeason) {
+      final pending = _vm.episodes.isEmpty && !_vm.episodesLoaded;
+      return _buildEpisodes(context, pending ? null : _vm.episodes);
     }
+    if (!(_isSeries || _isEpisode)) return const SizedBox.shrink();
+    return StreamBuilder<List<AggregatedItem>>(
+      stream: _vm.seriesEpisodesStream,
+      initialData: _vm.knownSeriesEpisodes,
+      builder: (context, snapshot) => _buildEpisodes(context, snapshot.data),
+    );
+  }
+
+  /// Draw the season tabs and rail for [all], or hold their room while null.
+  Widget _buildEpisodes(BuildContext context, List<AggregatedItem>? all) {
+    if (all == null) return _placeholder(context);
+    if (all.isEmpty) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
 
     final seasons = _seasonNumbers(all);
     // Landing on an episode opens its own season rather than the first one.

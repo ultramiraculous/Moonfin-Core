@@ -170,7 +170,6 @@ void main() {
     when(() => vm.seriesEpisodes).thenReturn(const []);
     when(() => vm.seasonsLoaded).thenReturn(true);
     when(() => vm.episodesLoaded).thenReturn(true);
-    when(() => vm.seriesEpisodesLoaded).thenReturn(true);
     when(() => vm.loadAllSeriesEpisodes()).thenAnswer((_) async {});
     when(() => vm.nextUp).thenReturn(null);
     when(() => vm.tracks).thenReturn(const []);

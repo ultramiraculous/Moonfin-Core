@@ -275,11 +275,12 @@ class NouveauDetailsSectionState extends State<NouveauDetailsSection> {
         return _vm.nextUp;
       }
 
-      if (_vm.seriesEpisodes.isNotEmpty) {
+      final episodes = _vm.freshSeriesEpisodes;
+      if (episodes != null && episodes.isNotEmpty) {
         try {
-          return _vm.seriesEpisodes.firstWhere((episode) => !episode.isPlayed);
+          return episodes.firstWhere((episode) => !episode.isPlayed);
         } catch (_) {
-          return _vm.seriesEpisodes.first;
+          return episodes.first;
         }
       }
     }

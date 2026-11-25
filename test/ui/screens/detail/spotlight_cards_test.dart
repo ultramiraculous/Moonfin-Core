@@ -160,7 +160,6 @@ void main() {
     when(() => vm.seasons).thenReturn(const []);
     when(() => vm.episodes).thenReturn(const []);
     when(() => vm.seriesEpisodes).thenReturn(const []);
-    when(() => vm.seriesEpisodesLoaded).thenReturn(true);
     when(() => vm.loadAllSeriesEpisodes()).thenAnswer((_) async {});
     when(() => vm.nextUp).thenReturn(null);
     when(() => vm.tracks).thenReturn(const []);
@@ -1115,7 +1114,6 @@ void main() {
   });
 
   test('a hidden more episodes card never loads the other seasons', () async {
-    when(() => vm.seriesEpisodesLoaded).thenReturn(false);
     when(() => vm.episodes).thenReturn([_child('ep-1', 'Episode')]);
     await hide('moreEpisodes');
 
