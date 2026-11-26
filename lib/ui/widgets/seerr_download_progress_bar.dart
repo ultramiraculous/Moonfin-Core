@@ -13,7 +13,8 @@ import '../../util/platform_detection.dart';
 import '../../util/relative_time_label.dart';
 
 /// Progress bar for an active Seerr download. Not focusable, so d-pad
-/// traversal is unaffected.
+/// traversal is unaffected. [onTap] makes it tappable on touch and pointer
+/// screens only.
 ///
 /// Capped rather than stretched: across a full desktop pane a thin bar reads
 /// as a divider, not as progress.
@@ -30,12 +31,15 @@ class SeerrDownloadProgressBar extends StatelessWidget {
   /// leaves it out, for a poster tile that shows it in its caption instead.
   final int reasonMaxLines;
 
+  final VoidCallback? onTap;
+
   const SeerrDownloadProgressBar({
     super.key,
     required this.summary,
     this.prefixLabel,
     this.scale,
     this.reasonMaxLines = 1,
+    this.onTap,
   });
 
   /// Past this the track is mostly empty and stops reading as a bar. Also
@@ -89,10 +93,16 @@ class SeerrDownloadProgressBar extends StatelessWidget {
     // not. Fixed rather than measured off the row, since the row grows when a
     // button expands on focus.
     final cap = PlatformDetection.useMobileUi ? double.infinity : _maxWidth;
+    final onTap = PlatformDetection.isTV ? null : this.onTap;
+
+    final label = LayoutBuilder(
+      builder: (context, constraints) =>
+          _label(context, l10n, labelStyle, constraints.maxWidth),
+    );
 
     // Align first: a ConstrainedBox alone cannot shrink under a tight width
     // from the parent, and callers do place this inside sized boxes.
-    return Align(
+    final bar = Align(
       alignment: AlignmentDirectional.centerStart,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: cap),
@@ -100,10 +110,19 @@ class SeerrDownloadProgressBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            LayoutBuilder(
-              builder: (context, constraints) =>
-                  _label(context, l10n, labelStyle, constraints.maxWidth),
-            ),
+            if (onTap == null)
+              label
+            else
+              Row(
+                children: [
+                  Expanded(child: label),
+                  Icon(
+                    Icons.chevron_right,
+                    size: (labelStyle.fontSize ?? 12) * 1.4,
+                    color: labelStyle.color,
+                  ),
+                ],
+              ),
             SizedBox(height: 4 * scale),
             ClipRRect(
               borderRadius: AppRadius.circular(4),
@@ -137,6 +156,15 @@ class SeerrDownloadProgressBar extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+    if (onTap == null) return bar;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: bar,
       ),
     );
   }
@@ -180,7 +208,12 @@ class SeerrDownloadProgressBar extends StatelessWidget {
     if (summary.state == SeerrDownloadState.importBlocked) {
       // Always fully downloaded, so a percentage only crowds out the words.
       return Text(
-        _withPrefix(l10n.seerrImportBlocked),
+        _withPrefix(
+          [
+            _stuckWord(l10n) ?? l10n.seerrImportBlocked,
+            ?_stuckEpisodes(l10n),
+          ].join(' \u00b7 '),
+        ),
         style: style,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -251,6 +284,12 @@ class SeerrDownloadProgressBar extends StatelessWidget {
       // word stays down to the size label's width and ellipsizes if it must.
       // Below that the bar's colour still says it's stuck.
       if (width < _sizeLabelWidth) return null;
+      final episodes = _stuckEpisodes(l10n);
+      if (episodes != null) {
+        return _withPrefix(
+          '${_stuckWord(l10n) ?? stateLabel} \u00b7 $episodes',
+        );
+      }
       if (summary.hasSize && width >= _fullLabelWidth) {
         final done = _sameUnitAs(summary.downloadedBytes, summary.totalBytes);
         final total = _sameUnitAs(summary.totalBytes, summary.totalBytes);
@@ -288,6 +327,27 @@ class SeerrDownloadProgressBar extends StatelessWidget {
     SeerrDownloadState.waitingForImport => null,
   };
 
+  /// "Stuck" when the stuck downloads are stuck in different ways, so the
+  /// count after it doesn't claim they all failed the same way. Otherwise
+  /// null, and the state's own word stands.
+  String? _stuckWord(AppLocalizations l10n) {
+    final states = {for (final d in summary.stuck) d.state};
+    return states.length > 1 ? l10n.seerrDownloadStuck : null;
+  }
+
+  /// Which episodes are stuck: "S32E13" for one, "12 episodes in season 32"
+  /// for several. Null for a movie or entries that don't say.
+  String? _stuckEpisodes(AppLocalizations l10n) {
+    if (!summary.isStuck) return null;
+    final episodes = summary.stuckEpisodes;
+    if (episodes.isEmpty) return null;
+    if (episodes.length == 1) return seerrEpisodeCode(l10n, episodes.single);
+    final seasons = {for (final e in episodes) e.season};
+    return seasons.length == 1
+        ? l10n.seerrEpisodesInSeason(episodes.length, seasons.single)
+        : l10n.episodeCount(episodes.length);
+  }
+
   /// "12m left", "2h left" or "1h 5m left". A download days out reads in
   /// hours, which is still plain enough.
   static String _timeLeftLabel(AppLocalizations l10n, Duration eta) {
@@ -311,6 +371,41 @@ class SeerrDownloadProgressBar extends StatelessWidget {
   String _withPrefix(String label) =>
       prefixLabel != null ? '$prefixLabel \u00b7 $label' : label;
 }
+
+/// "S32E13", zero-padded like a release name.
+String seerrEpisodeCode(AppLocalizations l10n, SeerrEpisodeNumber number) =>
+    l10n.seerrEpisodeCode(_pad(number.season), _pad(number.episode));
+
+/// The episodes compacted into runs: "S32E01–E12", or "S32E01–E03, S32E07".
+String seerrEpisodeRuns(
+  AppLocalizations l10n,
+  List<SeerrEpisodeNumber> episodes,
+) {
+  final runs = <String>[];
+  var i = 0;
+  while (i < episodes.length) {
+    final first = episodes[i];
+    var last = first;
+    while (i + 1 < episodes.length &&
+        episodes[i + 1].season == first.season &&
+        episodes[i + 1].episode == last.episode + 1) {
+      last = episodes[++i];
+    }
+    runs.add(
+      last == first
+          ? seerrEpisodeCode(l10n, first)
+          : l10n.seerrEpisodeRange(
+              _pad(first.season),
+              _pad(first.episode),
+              _pad(last.episode),
+            ),
+    );
+    i++;
+  }
+  return runs.join(', ');
+}
+
+String _pad(int n) => n.toString().padLeft(2, '0');
 
 /// What the arr is waiting on, where the download bar would be: a search
 /// running now, a title it hasn't found, or one that isn't out yet. No bar,

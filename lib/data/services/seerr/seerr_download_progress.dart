@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'arr_queue.dart';
 import 'seerr_api_models.dart';
 
@@ -54,6 +56,9 @@ class SeerrDownloadSummary {
   final int? stuckItemId;
   final String? stuckRelease;
 
+  /// Every download that won't finish by itself, ordered by episode.
+  final List<SeerrStuckDownload> stuck;
+
   const SeerrDownloadSummary({
     required this.fraction,
     this.state = SeerrDownloadState.downloading,
@@ -63,7 +68,15 @@ class SeerrDownloadSummary {
     this.reason,
     this.stuckItemId,
     this.stuckRelease,
+    this.stuck = const [],
   });
+
+  /// The episodes the [stuck] downloads hold, in order, each once.
+  List<SeerrEpisodeNumber> get stuckEpisodes {
+    final all = {for (final download in stuck) ...download.episodes}.toList()
+      ..sort();
+    return all;
+  }
 
   int get percent => (fraction * 100).round();
 
@@ -155,6 +168,8 @@ class SeerrDownloadSummary {
             healthy: true,
             queueId: null,
             release: null,
+            season: item.seasonNumber,
+            episode: item.episodeNumber,
           ),
       ]);
 
@@ -186,6 +201,8 @@ class SeerrDownloadSummary {
               },
               queueId: item.id,
               release: item.title,
+              season: item.seasonNumber,
+              episode: item.episodeNumber,
             ),
       ]);
 
@@ -203,6 +220,7 @@ class SeerrDownloadSummary {
     Duration? timeLeft;
     var timeLeftKnown = true;
     final seen = <String>{};
+    final stuckByKey = <String, _StuckBuilder>{};
     for (final item in items) {
       // Sonarr lists a season pack once per episode, each with the whole
       // pack's size, so a 9 episode pack counted 9 times. Count a download
@@ -216,7 +234,12 @@ class SeerrDownloadSummary {
           : queueId != null
           ? 'queue:$queueId'
           : null;
-      if (key == null || !seen.add(key)) continue;
+      if (key == null) continue;
+      final number = SeerrEpisodeNumber.of(item.season, item.episode);
+      if (!seen.add(key)) {
+        if (number != null) stuckByKey[key]?.episodes.add(number);
+        continue;
+      }
       // A magnet with no peers never learns its size, so a sizeless download
       // still counts for its state. It just adds no bytes.
       final size = item.size ?? 0;
@@ -237,6 +260,14 @@ class SeerrDownloadSummary {
           itemState == SeerrDownloadState.downloading && item.healthy
           ? null
           : item.reason;
+      if (_isStuck(itemState)) {
+        stuckByKey[key] = _StuckBuilder(
+          state: itemState,
+          reason: item.reason,
+          release: item.release,
+          queueId: item.queueId,
+        )..episodes.addAll([?number]);
+      }
       if (state == null ||
           itemState.index > state.index ||
           // Of two downloads in the same state, the one that says why.
@@ -284,6 +315,15 @@ class SeerrDownloadSummary {
       reason: reason,
       stuckItemId: stuck ? decider?.queueId : null,
       stuckRelease: stuck ? decider?.release : null,
+      stuck: [for (final b in stuckByKey.values) b.build()]
+        ..sort(
+          (a, b) => switch ((a.episodes.firstOrNull, b.episodes.firstOrNull)) {
+            (final x?, final y?) => x.compareTo(y),
+            (null, _?) => 1,
+            (_?, null) => -1,
+            _ => 0,
+          },
+        ),
     );
   }
 
@@ -355,4 +395,71 @@ typedef _QueueEntry = ({
   bool healthy,
   int? queueId,
   String? release,
+  int? season,
+  int? episode,
 });
+
+/// A season and episode number, ordered by season, then episode.
+@immutable
+class SeerrEpisodeNumber implements Comparable<SeerrEpisodeNumber> {
+  final int season;
+  final int episode;
+
+  const SeerrEpisodeNumber(this.season, this.episode);
+
+  static SeerrEpisodeNumber? of(int? season, int? episode) =>
+      season != null && episode != null
+      ? SeerrEpisodeNumber(season, episode)
+      : null;
+
+  @override
+  int compareTo(SeerrEpisodeNumber other) => season != other.season
+      ? season.compareTo(other.season)
+      : episode.compareTo(other.episode);
+
+  @override
+  bool operator ==(Object other) =>
+      other is SeerrEpisodeNumber &&
+      other.season == season &&
+      other.episode == episode;
+
+  @override
+  int get hashCode => Object.hash(season, episode);
+}
+
+/// A download that is stalled, blocked at import or failed, with the
+/// episodes it holds: one, a whole season pack, or none for a movie.
+@immutable
+class SeerrStuckDownload {
+  final SeerrDownloadState state;
+  final String? reason;
+  final String? release;
+  final int? queueId;
+  final List<SeerrEpisodeNumber> episodes;
+
+  const SeerrStuckDownload({
+    required this.state,
+    this.reason,
+    this.release,
+    this.queueId,
+    this.episodes = const [],
+  });
+}
+
+class _StuckBuilder {
+  final SeerrDownloadState state;
+  final String? reason;
+  final String? release;
+  final int? queueId;
+  final episodes = <SeerrEpisodeNumber>{};
+
+  _StuckBuilder({required this.state, this.reason, this.release, this.queueId});
+
+  SeerrStuckDownload build() => SeerrStuckDownload(
+    state: state,
+    reason: reason,
+    release: release,
+    queueId: queueId,
+    episodes: episodes.toList()..sort(),
+  );
+}

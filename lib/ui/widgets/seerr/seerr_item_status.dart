@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../data/models/aggregated_item.dart';
 import '../../../data/services/seerr/seerr_api_models.dart';
+import '../../../data/services/seerr/seerr_download_progress.dart';
 import '../../../data/viewmodels/item_detail_view_model.dart';
 import '../../../data/viewmodels/seerr_media_detail_view_model.dart';
 import '../../../l10n/app_localizations.dart';
@@ -12,6 +13,7 @@ import '../seerr_download_progress_bar.dart';
 import 'seerr_item_chips.dart';
 import 'seerr_stats_card.dart';
 import 'seerr_status_pill.dart';
+import 'seerr_stuck_downloads_dialog.dart';
 
 /// The Seerr state worth showing beside a library item's metadata, or null when
 /// there is nothing to say. Callers check for null rather than rendering an
@@ -179,6 +181,7 @@ class SeerrItemDownloadBars extends StatelessWidget {
             summary: hd,
             prefixLabel: both ? 'HD' : null,
             reasonMaxLines: 3,
+            onTap: _stuckDetails(context, hd),
           )
         else if (wait != null)
           SeerrArrWaitLabel(wait: wait, prefixLabel: both ? 'HD' : null),
@@ -187,10 +190,18 @@ class SeerrItemDownloadBars extends StatelessWidget {
             summary: uhd,
             prefixLabel: AppLocalizations.of(context).uhd4k,
             reasonMaxLines: 3,
+            onTap: _stuckDetails(context, uhd),
           ),
       ],
     );
   }
+
+  static VoidCallback? _stuckDetails(
+    BuildContext context,
+    SeerrDownloadSummary summary,
+  ) => summary.stuck.isEmpty
+      ? null
+      : () => showSeerrStuckDownloadsDialog(context: context, summary: summary);
 }
 
 /// [_resolved] narrowed to the season or episode a Season or Episode page

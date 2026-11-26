@@ -7938,6 +7938,53 @@
   "@seerrImportBlocked": {
     "description": "Label on the Seerr download bar when the download finished but Radarr/Sonarr refuses to import it, for example because the release contains an executable"
   },
+  "seerrDownloadStuck": "Stuck",
+  "@seerrDownloadStuck": {
+    "description": "Label on the Seerr download bar when several downloads are stuck in different ways (stalled, import blocked or failed)"
+  },
+  "seerrEpisodeCode": "S{season}E{episode}",
+  "@seerrEpisodeCode": {
+    "description": "Compact season and episode code naming a stuck download, like S32E13. The numbers come zero-padded to two digits",
+    "placeholders": {
+      "season": {
+        "type": "String"
+      },
+      "episode": {
+        "type": "String"
+      }
+    }
+  },
+  "seerrEpisodeRange": "S{season}E{first}–E{last}",
+  "@seerrEpisodeRange": {
+    "description": "Compact code for a run of episodes in one season held by one stuck download, like S32E01–E12. The numbers come zero-padded to two digits",
+    "placeholders": {
+      "season": {
+        "type": "String"
+      },
+      "first": {
+        "type": "String"
+      },
+      "last": {
+        "type": "String"
+      }
+    }
+  },
+  "seerrEpisodesInSeason": "{count, plural, =1{1 episode in season {season}} other{{count} episodes in season {season}}}",
+  "@seerrEpisodesInSeason": {
+    "description": "On the Seerr download bar, how many episodes of one season are stuck, after the state, as in 'Import blocked · 12 episodes in season 32'",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "season": {
+        "type": "int"
+      }
+    }
+  },
+  "seerrStuckDownloadsTitle": "Stuck downloads",
+  "@seerrStuckDownloadsTitle": {
+    "description": "Title of the dialog listing each stuck download of a title, opened by tapping its Seerr download bar"
+  },
   "seerrNotFoundYet": "Not found yet",
   "@seerrNotFoundYet": {
     "description": "Shown where the Seerr download bar would be, when a request was approved and Radarr or Sonarr has the released movie or aired episodes but has not found a release to download yet"
