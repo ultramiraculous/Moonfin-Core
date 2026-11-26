@@ -209,7 +209,7 @@ enum DesktopUiScale {
 /// about two items on low, three on medium and five on high.
 enum SiriRemoteSwipeSensitivity {
   low(0.6, 0.9),
-  medium(0.45, 0.6),
+  medium(0.3, 0.6),
   high(0.28, 0.36);
 
   const SiriRemoteSwipeSensitivity(this.firstStepTravel, this.stepTravel);
