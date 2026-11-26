@@ -662,6 +662,8 @@ class UserPreferences extends ChangeNotifier {
     'pref_clock_behavior',
     'pref_prefer_system_ime_keyboard',
     'pref_keyboard_style',
+    'pref_keyboard_style_picked',
+    'pref_keyboard_style_admin_default',
     'pref_audio_language',
     'pref_fallback_audio_language',
     'pref_prefer_default_audio_track',
@@ -1794,6 +1796,39 @@ class UserPreferences extends ChangeNotifier {
         : KeyboardStyle.docked,
     values: KeyboardStyle.values,
   );
+
+  /// Set once the viewer picks a keyboard style on this device. Not synced.
+  static final keyboardStylePicked = Preference(
+    key: 'pref_keyboard_style_picked',
+    defaultValue: false,
+  );
+
+  /// Whether Moonbase has an admin default for the keyboard style. Not synced.
+  static final keyboardStyleHasAdminDefault = Preference(
+    key: 'pref_keyboard_style_admin_default',
+    defaultValue: false,
+  );
+
+  /// The keyboard style text fields open with.
+  KeyboardStyle get keyboardStyleInUse =>
+      shownKeyboardStyle(get(keyboardStyle));
+
+  /// Show Native on Apple TV for a Docked that wasn't picked on this device
+  /// and isn't a Moonbase admin default.
+  KeyboardStyle shownKeyboardStyle(KeyboardStyle stored) {
+    if (!PlatformDetection.isAppleTV || stored != KeyboardStyle.docked) {
+      return stored;
+    }
+    if (get(keyboardStylePicked) || get(keyboardStyleHasAdminDefault)) {
+      return stored;
+    }
+    return KeyboardStyle.native;
+  }
+
+  Future<void> pickKeyboardStyle(KeyboardStyle style) async {
+    await set(keyboardStyle, style);
+    await set(keyboardStylePicked, true);
+  }
 
   static final _legacyPreferSystemIme = Preference(
     key: 'pref_prefer_system_ime_keyboard',

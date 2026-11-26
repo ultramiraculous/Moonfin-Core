@@ -2001,7 +2001,7 @@ class _SettingsSearchPreviewState extends State<SettingsSearchPreview> {
   Widget build(BuildContext context) {
     final size = setupPreviewSize();
     const query = 'Spri';
-    final style = previewValue(context, UserPreferences.keyboardStyle);
+    final style = _keyboardStyle(context);
     final keyboard = _keyboards.putIfAbsent(
       style,
       () => KeyboardController()
@@ -2181,4 +2181,12 @@ class _SystemKeyboard extends StatelessWidget {
       ),
     );
   }
+}
+
+KeyboardStyle _keyboardStyle(BuildContext context) {
+  final key = UserPreferences.keyboardStyle.key;
+  final saved = previewValue(context, UserPreferences.keyboardStyle);
+  final trying = SettingsPreviewScope.maybeOf(context)?.isTrying(key) ?? false;
+  if (trying || !GetIt.instance.isRegistered<UserPreferences>()) return saved;
+  return GetIt.instance<UserPreferences>().shownKeyboardStyle(saved);
 }

@@ -838,7 +838,7 @@ class _NoteEditorSheetState extends State<_NoteEditorSheet> {
     final apple = PlatformDetection.isApple;
     final isTV = PlatformDetection.isTV;
     final prefs = GetIt.instance<UserPreferences>();
-    final keyboardStyle = prefs.get(UserPreferences.keyboardStyle);
+    final keyboardStyle = prefs.keyboardStyleInUse;
     final focusColor = Color(prefs.get(UserPreferences.focusColor).colorValue);
     final bottomPadding = AppSpacing.spaceLg;
 

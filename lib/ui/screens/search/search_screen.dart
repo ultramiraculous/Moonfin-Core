@@ -1009,9 +1009,8 @@ class _SearchScreenState extends State<SearchScreen>
                                 inputPurpose: InputPurpose.search,
                                 suggestionsBuilder: _fetchKeyboardSuggestions,
                                 recentSuggestions: _recentSearches,
-                                keyboardStyle: _userPreferences.get(
-                                  UserPreferences.keyboardStyle,
-                                ),
+                                keyboardStyle:
+                                    _userPreferences.keyboardStyleInUse,
                                 hint: searchHint,
                                 textStyle: TextStyle(
                                   color: AppColorScheme.onSurface,

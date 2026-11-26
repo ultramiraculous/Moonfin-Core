@@ -422,6 +422,13 @@ class PluginSyncService extends ChangeNotifier {
       }
 
       _pluginAvailable = true;
+      if (PlatformDetection.isAppleTV) {
+        final defaults = pingResult['defaultSettings'];
+        await _prefs.set(
+          UserPreferences.keyboardStyleHasAdminDefault,
+          defaults is Map && defaults['keyboardStyle'] != null,
+        );
+      }
       _pluginVersion = _readString(pingResult, 'version');
       _seerrUrl = _readString(pingResult, 'seerrUrl');
       _seerrEnabled = _readBool(pingResult, 'seerrEnabled') ?? false;
@@ -1387,6 +1394,9 @@ class PluginSyncService extends ChangeNotifier {
     try {
       final response = await _dio.get(
         '${ep.base}/Moonfin/Ping',
+        queryParameters: PlatformDetection.isAppleTV
+            ? {'profile': syncProfile}
+            : null,
         options: Options(headers: headers),
       );
       if (response.data is Map<String, dynamic>) {

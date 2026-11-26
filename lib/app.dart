@@ -98,7 +98,7 @@ class _MoonfinAppState extends State<MoonfinApp> {
     super.initState();
     _prefs = GetIt.instance<UserPreferences>();
     CustomKeyboard.onStylePicked = (style) =>
-        _prefs.set(UserPreferences.keyboardStyle, style);
+        _prefs.pickKeyboardStyle(style);
     _themeController = AppThemeController.fromPreferences(_prefs);
     _lastResolvedLocale = _resolveLocale();
     AppUiIdiomResolver.setOverride(_prefs.get(UserPreferences.interfaceStyle));

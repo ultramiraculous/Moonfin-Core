@@ -1286,7 +1286,7 @@ class _CreateGroupSection extends StatelessWidget {
               controller: controller,
               isFocused: focused,
               inputPurpose: InputPurpose.text,
-              keyboardStyle: prefs.get(UserPreferences.keyboardStyle),
+              keyboardStyle: prefs.keyboardStyleInUse,
               hint: l10n.syncPlayGroupName,
               textFieldType: TextFieldType.other,
               keyboardType: KeyboardType.alphabetic,

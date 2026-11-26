@@ -468,6 +468,9 @@ class EnumPreferenceTile<T extends Enum> extends StatefulWidget {
   final String Function(T value)? dialogSubtitleOf;
   final VoidCallback? onChanged;
   final ValueChanged<T>? onChangedValue;
+
+  /// Maps the saved value to the one the tile shows and the picker starts on.
+  final T Function(T saved)? shownValueOf;
   final List<T>? values;
   final bool autofocus;
   final bool enabled;
@@ -484,6 +487,7 @@ class EnumPreferenceTile<T extends Enum> extends StatefulWidget {
     this.icon,
     this.onChanged,
     this.onChangedValue,
+    this.shownValueOf,
     this.values,
     this.autofocus = false,
     this.enabled = true,
@@ -531,6 +535,9 @@ class _EnumPreferenceTileState<T extends Enum>
     super.dispose();
   }
 
+  T get _shownValue =>
+      widget.shownValueOf?.call(_binding.value) ?? _binding.value;
+
   @override
   Widget build(BuildContext context) {
     final values = widget.values ?? widget.preference.values.toList();
@@ -541,8 +548,8 @@ class _EnumPreferenceTileState<T extends Enum>
         description: widget.description,
         options: [for (final v in values) widget.labelOf(v)],
         // A value the tile no longer offers reads as its first option.
-        currentIndex: () => values.contains(_binding.value)
-            ? values.indexOf(_binding.value)
+        currentIndex: () => values.contains(_shownValue)
+            ? values.indexOf(_shownValue)
             : 0,
       ),
       child: _buildTile(context, values),
@@ -554,7 +561,8 @@ class _EnumPreferenceTileState<T extends Enum>
       enabled: widget.enabled,
       builder: (context, focused) => ValueListenableBuilder<T>(
         valueListenable: _binding,
-        builder: (context, value, _) {
+        builder: (context, saved, _) {
+          final value = widget.shownValueOf?.call(saved) ?? saved;
           final current = values.contains(value) ? value : values.first;
           final label = widget.labelOf(current);
           return ListTile(
@@ -607,7 +615,7 @@ class _EnumPreferenceTileState<T extends Enum>
     );
     preview?.clearTry(key);
     _pickerOpen = false;
-    if (!mounted || result == null || result == _binding.value) return;
+    if (!mounted || result == null || result == current) return;
     _binding.value = result;
     widget.onChanged?.call();
     widget.onChangedValue?.call(result);

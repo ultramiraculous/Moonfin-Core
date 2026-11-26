@@ -1404,9 +1404,7 @@ class _SeerrLoginCardState extends State<_SeerrLoginCard> {
                 TextFieldType.username => InputPurpose.username,
                 _ => InputPurpose.text,
               },
-              keyboardStyle: _userPreferences.get(
-                UserPreferences.keyboardStyle,
-              ),
+              keyboardStyle: _userPreferences.keyboardStyleInUse,
               hint: label,
               textFieldType: tvType,
               keyboardType: KeyboardType.alphabetic,

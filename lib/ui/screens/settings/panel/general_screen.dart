@@ -22,6 +22,7 @@ class _GeneralScreenState extends State<_GeneralScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final prefs = GetIt.instance<UserPreferences>();
     final bottomPad =
         (PlatformDetection.isTV ? 96.0 : 24.0) +
         MediaQuery.paddingOf(context).bottom;
@@ -103,17 +104,27 @@ class _GeneralScreenState extends State<_GeneralScreen> {
               adaptiveListSection(
                 children: [
                   if (PlatformDetection.isTV)
-                    EnumPreferenceTile<KeyboardStyle>(
-                      preference: UserPreferences.keyboardStyle,
-                      title: l10n.keyboardStyle,
-                      description: l10n.keyboardStyleDescription,
-                      icon: Icons.keyboard_alt_outlined,
-                      labelOf: (v) => switch (v) {
-                        KeyboardStyle.native => l10n.keyboardStyleNative,
-                        KeyboardStyle.classic => l10n.keyboardStyleClassic,
-                        KeyboardStyle.glass => l10n.keyboardStyleGlass,
-                        KeyboardStyle.docked => l10n.keyboardStyleDocked,
-                      },
+                    ListenableBuilder(
+                      listenable: prefs,
+                      builder: (context, _) =>
+                          EnumPreferenceTile<KeyboardStyle>(
+                            preference: UserPreferences.keyboardStyle,
+                            title: l10n.keyboardStyle,
+                            description: l10n.keyboardStyleDescription,
+                            icon: Icons.keyboard_alt_outlined,
+                            shownValueOf: prefs.shownKeyboardStyle,
+                            onChangedValue: (_) => prefs.set(
+                              UserPreferences.keyboardStylePicked,
+                              true,
+                            ),
+                            labelOf: (v) => switch (v) {
+                              KeyboardStyle.native => l10n.keyboardStyleNative,
+                              KeyboardStyle.classic =>
+                                l10n.keyboardStyleClassic,
+                              KeyboardStyle.glass => l10n.keyboardStyleGlass,
+                              KeyboardStyle.docked => l10n.keyboardStyleDocked,
+                            },
+                          ),
                     ),
                   if (showSiriSensitivity)
                     EnumPreferenceTile<SiriRemoteSwipeSensitivity>(

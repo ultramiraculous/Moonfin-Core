@@ -143,7 +143,7 @@ class _SeerrTextFieldState extends State<SeerrTextField> {
             isFocused: focusNode.hasFocus,
             inputPurpose: InputPurpose.text,
             keyboardType: KeyboardType.alphabetic,
-            keyboardStyle: prefs.get(UserPreferences.keyboardStyle),
+            keyboardStyle: prefs.keyboardStyleInUse,
             hint: widget.hint,
             filled: true,
             fillColor: AppColorScheme.inputBackground,

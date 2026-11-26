@@ -1053,7 +1053,7 @@ class _SocialTextFieldState extends State<_SocialTextField> {
             isFocused: _node.hasFocus,
             inputPurpose: InputPurpose.text,
             keyboardType: KeyboardType.alphabetic,
-            keyboardStyle: prefs.get(UserPreferences.keyboardStyle),
+            keyboardStyle: prefs.keyboardStyleInUse,
             popParentOnKeyboardClose: false,
             hint: widget.hint,
             prefixIcon: icon,

@@ -1334,9 +1334,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? InputPurpose.password
                   : InputPurpose.username,
               recentSuggestions: recentSuggestions,
-              keyboardStyle: _userPreferences.get(
-                UserPreferences.keyboardStyle,
-              ),
+              keyboardStyle: _userPreferences.keyboardStyleInUse,
               hint: label,
               filled: true,
               fillColor: focused

@@ -1857,9 +1857,8 @@ class _SettingsTextFieldState extends State<_SettingsTextField> {
               isFocused: focused,
               popParentOnKeyboardClose: false,
               hint: widget.hint,
-              keyboardStyle: GetIt.instance<UserPreferences>().get(
-                UserPreferences.keyboardStyle,
-              ),
+              keyboardStyle:
+                  GetIt.instance<UserPreferences>().keyboardStyleInUse,
               filled: true,
               fillColor: focused
                   ? AppColorScheme.buttonFocused.withValues(alpha: 0.22)

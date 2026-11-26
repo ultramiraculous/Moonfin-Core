@@ -933,9 +933,7 @@ class _AddServerDialogState extends State<AddServerDialog> {
             isFocused: focused,
             inputPurpose: InputPurpose.url,
             recentSuggestions: _recentServerAddresses,
-            keyboardStyle: _userPreferences.get(
-              UserPreferences.keyboardStyle,
-            ),
+            keyboardStyle: _userPreferences.keyboardStyleInUse,
             hint: l10n.serverAddressHint,
             textFieldType: TextFieldType.url,
             keyboardType: KeyboardType.alphabetic,

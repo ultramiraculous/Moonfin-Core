@@ -346,7 +346,7 @@ class _AddToCollectionDialogState extends State<AddToCollectionDialog> {
                                     hint: l10n.collections,
                                     keyboardStyle: GetIt.instance<
                                       UserPreferences
-                                    >().get(UserPreferences.keyboardStyle),
+                                    >().keyboardStyleInUse,
                                     onFieldSubmitted: (_) {
                                       Navigator.pop(ctx);
                                       _createAndAdd();

@@ -1415,9 +1415,7 @@ class _TvAwareFieldState extends State<_TvAwareField> {
             inputPurpose: widget.numeric
                 ? InputPurpose.numeric
                 : InputPurpose.text,
-            keyboardStyle: GetIt.instance<UserPreferences>().get(
-              UserPreferences.keyboardStyle,
-            ),
+            keyboardStyle: GetIt.instance<UserPreferences>().keyboardStyleInUse,
             hint: widget.hint,
             textFieldType: widget.numeric
                 ? TextFieldType.number

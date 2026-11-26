@@ -143,9 +143,8 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
         final hintStyle = TextStyle(
           color: AppColorScheme.onSurface.withValues(alpha: 0.4),
         );
-        final keyboardStyle = GetIt.instance<UserPreferences>().get(
-          UserPreferences.keyboardStyle,
-        );
+        final keyboardStyle =
+            GetIt.instance<UserPreferences>().keyboardStyleInUse;
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.symmetric(

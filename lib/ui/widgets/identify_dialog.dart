@@ -951,7 +951,7 @@ class _IdentifyDialogState extends State<IdentifyDialog> {
                       listenable: fieldFocusNode,
                       builder: (ctx, _) {
                         final keyboardStyle =
-                            _prefs.get(UserPreferences.keyboardStyle);
+                            _prefs.keyboardStyleInUse;
                         return GestureDetector(
                           onTap: () {
                             if (!fieldFocusNode.hasFocus) {
