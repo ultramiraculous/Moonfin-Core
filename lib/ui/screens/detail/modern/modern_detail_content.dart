@@ -744,16 +744,16 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
     if (item == null) return;
     final seriesId = item.seriesId;
     if (seriesId == null || _seriesLogoId == seriesId) return;
+    // Claim the series up front so updates during the request skip it.
+    _seriesLogoId = seriesId;
+    _seriesLogoTag = null;
 
     try {
       final client = GetIt.instance<MediaServerClient>();
       final seriesData = await client.itemsApi.getItem(seriesId);
       final logoTag = (seriesData['ImageTags'] as Map?)?['Logo'] as String?;
-      if (mounted) {
-        setState(() {
-          _seriesLogoTag = logoTag;
-          _seriesLogoId = seriesId;
-        });
+      if (mounted && _seriesLogoId == seriesId) {
+        setState(() => _seriesLogoTag = logoTag);
       }
     } catch (_) {}
   }

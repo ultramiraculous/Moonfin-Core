@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,6 +35,7 @@ class MockPluginSyncService extends Mock implements PluginSyncService {}
 class MockSeerrPreferences extends Mock implements SeerrPreferences {}
 class MockMediaServerClient extends Mock implements MediaServerClient {}
 class MockImageApi extends Mock implements ImageApi {}
+class MockItemsApi extends Mock implements ItemsApi {}
 class MockUserRepository extends Mock implements UserRepository {}
 class MockOfflineRepository extends Mock implements OfflineRepository {}
 class MockPlaybackManager extends Mock implements PlaybackManager {}
@@ -585,5 +588,39 @@ void main() {
       FocusManager.instance.primaryFocus?.debugLabel,
       'seerrRecommendationsFirst',
     );
+  });
+
+  testWidgets('an episode asks for its series logo once while the page loads', (tester) async {
+    final listeners = <VoidCallback>[];
+    when(() => vm.addListener(any())).thenAnswer((invocation) {
+      listeners.add(invocation.positionalArguments.first as VoidCallback);
+    });
+    final seriesResponse = Completer<Map<String, dynamic>>();
+    final itemsApi = MockItemsApi();
+    when(() => mediaClient.itemsApi).thenReturn(itemsApi);
+    when(() => itemsApi.getItem('series-1')).thenAnswer((_) => seriesResponse.future);
+    when(() => vm.item).thenReturn(AggregatedItem(
+      id: 'episode-1',
+      serverId: 'server-1',
+      rawData: const {
+        'Id': 'episode-1',
+        'Name': 'Pilot',
+        'Type': 'Episode',
+        'SeriesId': 'series-1',
+        'SeriesName': 'Arcane',
+      },
+    ));
+
+    await tester.pumpWidget(buildTestWidget());
+    for (var i = 0; i < 3; i++) {
+      for (final listener in List.of(listeners)) {
+        listener();
+      }
+      await tester.pump();
+    }
+    seriesResponse.complete({'Id': 'series-1', 'ImageTags': <String, dynamic>{}});
+    await tester.pump(const Duration(milliseconds: 100));
+
+    verify(() => itemsApi.getItem('series-1')).called(1);
   });
 }
