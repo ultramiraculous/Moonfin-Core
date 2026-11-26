@@ -36,6 +36,8 @@ final class NowPlayingController {
     var onSkip: (@MainActor (TimeInterval) -> Void)?
     var onNext: (@MainActor () -> Void)?
     var onPrevious: (@MainActor () -> Void)?
+    /// Subtitle track index chosen from a system remote, or -1 for off.
+    var onSelectSubtitle: (@MainActor (Int) -> Void)?
 
     private var wantsCommands = false
     private var commandsRegistered = false
@@ -45,6 +47,8 @@ final class NowPlayingController {
     private var attachedPlayer: AVPlayer?
     private var queueHasNext = false
     private var queueHasPrevious = false
+    private var subtitleTracks: [(index: Int, label: String)] = []
+    private var selectedSubtitle = -1
 
     /// Seconds a transport command moves by. A physical fast forward or rewind
     /// key lands on the seek commands rather than the skip ones, so both read
@@ -227,6 +231,38 @@ final class NowPlayingController {
             }
         }
 
+        addTarget(center.enableLanguageOptionCommand) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self,
+                    let option = (event as? MPChangeLanguageOptionCommandEvent)?.languageOption,
+                    option.languageOptionType == .legible
+                else {
+                    return .commandFailed
+                }
+                let index =
+                    option.isAutomaticLegibleLanguageOption()
+                    ? self.subtitleTracks.first?.index
+                    : option.identifier.flatMap { Int($0) }
+                guard let index, self.subtitleTracks.contains(where: { $0.index == index }) else {
+                    return .noSuchContent
+                }
+                self.onSelectSubtitle?(index)
+                return .success
+            }
+        }
+        addTarget(center.disableLanguageOptionCommand) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self,
+                    (event as? MPChangeLanguageOptionCommandEvent)?.languageOption.languageOptionType
+                        != .audible
+                else {
+                    return .commandFailed
+                }
+                self.onSelectSubtitle?(-1)
+                return .success
+            }
+        }
+
         applySkipIntervals()
         center.playCommand.isEnabled = true
         center.pauseCommand.isEnabled = true
@@ -238,6 +274,46 @@ final class NowPlayingController {
         center.seekBackwardCommand.isEnabled = true
         center.nextTrackCommand.isEnabled = queueHasNext
         center.previousTrackCommand.isEnabled = queueHasPrevious
+        applySubtitleCommandState()
+    }
+
+    /// Offers the subtitle tracks to system remotes as legible language options.
+    func setSubtitleTracks(_ tracks: [(index: Int, label: String)], selected: Int) {
+        let unchanged =
+            selected == selectedSubtitle
+            && tracks.map(\.index) == subtitleTracks.map(\.index)
+            && tracks.map(\.label) == subtitleTracks.map(\.label)
+        if unchanged { return }
+        subtitleTracks = tracks
+        selectedSubtitle = selected
+        applySubtitleCommandState()
+        applyLanguageOptions()
+        if !info.isEmpty { publish(info) }
+    }
+
+    private func applySubtitleCommandState() {
+        guard commandsRegistered, let center = commandCenter else { return }
+        center.enableLanguageOptionCommand.isEnabled = !subtitleTracks.isEmpty
+        center.disableLanguageOptionCommand.isEnabled = !subtitleTracks.isEmpty
+    }
+
+    private func applyLanguageOptions() {
+        guard !subtitleTracks.isEmpty else {
+            info[MPNowPlayingInfoPropertyAvailableLanguageOptions] = nil
+            info[MPNowPlayingInfoPropertyCurrentLanguageOptions] = nil
+            return
+        }
+        let options = subtitleTracks.map {
+            MPNowPlayingInfoLanguageOption(
+                type: .legible, languageTag: "und", characteristics: nil,
+                displayName: $0.label, identifier: String($0.index))
+        }
+        let group = MPNowPlayingInfoLanguageOptionGroup(
+            languageOptions: options, defaultLanguageOption: nil, allowEmptySelection: true)
+        info[MPNowPlayingInfoPropertyAvailableLanguageOptions] = [group]
+        info[MPNowPlayingInfoPropertyCurrentLanguageOptions] = options.filter {
+            $0.identifier == String(selectedSubtitle)
+        }
     }
 
     /// Follows the user's skip lengths. Safe before the commands register,
@@ -292,6 +368,7 @@ final class NowPlayingController {
             info[MPMediaItemPropertyPlaybackDuration] = durationSeconds
         }
         info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.video.rawValue
+        applyLanguageOptions()
         publish(info)
         loadArtwork(artworkURL)
     }
@@ -344,7 +421,10 @@ final class NowPlayingController {
         _ command: MPRemoteCommand,
         handler: @escaping (MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus
     ) {
-        let token = command.addTarget(handler: handler)
+        let token = command.addTarget { event in
+            NSLog("[RemoteSpike] command %@", String(describing: type(of: event)))
+            return handler(event)
+        }
         registeredTargets.append((command, token))
     }
 

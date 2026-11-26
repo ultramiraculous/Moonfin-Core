@@ -123,6 +123,7 @@ class AppDelegate: FlutterAppDelegate {
         continue userActivity: NSUserActivity,
         restorationHandler: @escaping ([any UIUserActivityRestoring]?) -> Void
     ) -> Bool {
+        NSLog("[RemoteSpike] user activity %@", userActivity.activityType)
         guard userActivity.activityType == TVUserActivityTypeBrowsingChannelGuide else {
             return super.application(
                 application, continue: userActivity, restorationHandler: restorationHandler)

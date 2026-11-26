@@ -1566,6 +1566,12 @@ final class NativeApplePlayerViewController: UIViewController {
             backward: Double(skipBackMs) / 1000.0)
         audioTracks = parseTracks(args["audioTracks"])
         subtitleTracks = parseTracks(args["subtitleTracks"])
+        player.nowPlaying.onSelectSubtitle = { [weak self] index in
+            self?.selectSubtitle(index, secondary: false)
+        }
+        player.nowPlaying.setSubtitleTracks(
+            subtitleTracks.map { (index: $0.index, label: $0.label) },
+            selected: subtitleTracks.first(where: { $0.selected })?.index ?? -1)
         subtitleControls = (args["subtitleControls"] as? [String: Any]) ?? [:]
         streamInfoSections = (args["streamInfoSections"] as? [[String: Any]]) ?? []
         streamInfoTitle =
@@ -2173,6 +2179,9 @@ final class NativeApplePlayerViewController: UIViewController {
     }
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        for press in presses {
+            NSLog("[RemoteSpike] press type %ld", press.type.rawValue)
+        }
         if presentedViewController != nil {
             super.pressesBegan(presses, with: event)
             return
