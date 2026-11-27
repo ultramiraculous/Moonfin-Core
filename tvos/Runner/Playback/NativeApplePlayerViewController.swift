@@ -420,6 +420,9 @@ final class NativeApplePlayerViewController: UIViewController {
     init(player: AetherPlayerWrapper) {
         self.player = player
         super.init(nibName: nil, bundle: nil)
+        player.nowPlaying.onSelectSubtitle = { [weak self] index in
+            self?.selectSubtitle(index, secondary: false)
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -1569,6 +1572,8 @@ final class NativeApplePlayerViewController: UIViewController {
             backward: Double(skipBackMs) / 1000.0)
         audioTracks = parseTracks(args["audioTracks"])
         subtitleTracks = parseTracks(args["subtitleTracks"])
+        let remoteSubtitles = NowPlayingSubtitleTrack.parse(args["subtitleTracks"])
+        player.nowPlaying.setSubtitleTracks(remoteSubtitles.tracks, selected: remoteSubtitles.selected)
         subtitleControls = (args["subtitleControls"] as? [String: Any]) ?? [:]
         streamInfoSections = (args["streamInfoSections"] as? [[String: Any]]) ?? []
         streamInfoTitle =

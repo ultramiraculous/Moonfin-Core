@@ -7,6 +7,84 @@ import UIKit
 import AppKit
 #endif
 
+/// A subtitle track as system remotes see it.
+struct NowPlayingSubtitleTrack: Equatable {
+    let index: Int
+    let label: String
+    var language: String? = nil
+    var forced = false
+    var hearingImpaired = false
+
+    /// Reads the subtitle tracks Flutter sends for the player menu.
+    static func parse(_ raw: Any?) -> (tracks: [NowPlayingSubtitleTrack], selected: Int?) {
+        guard let entries = raw as? [[String: Any]] else { return ([], nil) }
+        var tracks: [NowPlayingSubtitleTrack] = []
+        var selected: Int?
+        for entry in entries {
+            guard let index = (entry["index"] as? NSNumber)?.intValue else { continue }
+            tracks.append(
+                NowPlayingSubtitleTrack(
+                    index: index,
+                    label: (entry["label"] as? String) ?? "",
+                    language: entry["language"] as? String,
+                    forced: (entry["forced"] as? Bool) ?? false,
+                    hearingImpaired: (entry["hearingImpaired"] as? Bool) ?? false))
+            if (entry["selected"] as? Bool) == true { selected = index }
+        }
+        return (tracks, selected)
+    }
+
+    var languageTag: String {
+        guard let language, !language.isEmpty else { return "und" }
+        return Locale.canonicalLanguageIdentifier(from: language)
+    }
+
+    var languageOption: MPNowPlayingInfoLanguageOption {
+        var characteristics: [String] = []
+        if forced {
+            characteristics.append(MPLanguageOptionCharacteristicContainsOnlyForcedSubtitles)
+        }
+        if hearingImpaired {
+            characteristics.append(MPLanguageOptionCharacteristicTranscribesSpokenDialog)
+            characteristics.append(MPLanguageOptionCharacteristicDescribesMusicAndSound)
+        }
+        return MPNowPlayingInfoLanguageOption(
+            type: .legible, languageTag: languageTag,
+            characteristics: characteristics.isEmpty ? nil : characteristics,
+            displayName: label, identifier: String(index))
+    }
+
+    /// Picks the track for a remote's choice, or nil when it names none.
+    static func index(
+        for option: MPNowPlayingInfoLanguageOption, in tracks: [NowPlayingSubtitleTrack]
+    ) -> Int? {
+        guard option.languageOptionType == .legible else { return nil }
+        if option.isAutomaticLegibleLanguageOption() {
+            return automaticIndex(in: tracks)
+        }
+        guard let id = option.identifier.flatMap({ Int($0) }) else { return nil }
+        return tracks.contains { $0.index == id } ? id : nil
+    }
+
+    /// Prefers a full track in one of `preferredLanguages`, then any full track.
+    static func automaticIndex(
+        in tracks: [NowPlayingSubtitleTrack],
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) -> Int? {
+        let full = tracks.filter { !$0.forced }
+        let preferred = preferredLanguages.lazy.compactMap { tag in
+            full.first {
+                $0.language != nil && baseLanguage($0.languageTag) == baseLanguage(tag)
+            }
+        }.first
+        return (preferred ?? full.first ?? tracks.first)?.index
+    }
+
+    private static func baseLanguage(_ tag: String) -> String {
+        String(Locale.canonicalLanguageIdentifier(from: tag).prefix { $0 != "-" && $0 != "_" })
+    }
+}
+
 /// Bridges the player to the system Now Playing infrastructure: it owns the
 /// Now Playing payload and remote-command handlers so Moonfin becomes the
 /// active Now Playing app. Without this, AirPods stem clicks and Control
@@ -36,6 +114,8 @@ final class NowPlayingController {
     var onSkip: (@MainActor (TimeInterval) -> Void)?
     var onNext: (@MainActor () -> Void)?
     var onPrevious: (@MainActor () -> Void)?
+    /// A subtitle track index chosen from a system remote, or -1 for off.
+    var onSelectSubtitle: (@MainActor (Int) -> Void)?
 
     private var wantsCommands = false
     private var commandsRegistered = false
@@ -45,6 +125,8 @@ final class NowPlayingController {
     private var attachedPlayer: AVPlayer?
     private var queueHasNext = false
     private var queueHasPrevious = false
+    private var subtitleTracks: [NowPlayingSubtitleTrack] = []
+    private var selectedSubtitle: Int?
 
     /// Seconds a transport command moves by. A physical fast forward or rewind
     /// key lands on the seek commands rather than the skip ones, so both read
@@ -227,6 +309,31 @@ final class NowPlayingController {
             }
         }
 
+        addTarget(center.enableLanguageOptionCommand) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self,
+                    let option = (event as? MPChangeLanguageOptionCommandEvent)?.languageOption,
+                    let index = NowPlayingSubtitleTrack.index(for: option, in: self.subtitleTracks)
+                else {
+                    return .noSuchContent
+                }
+                self.onSelectSubtitle?(index)
+                return .success
+            }
+        }
+        addTarget(center.disableLanguageOptionCommand) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self,
+                    (event as? MPChangeLanguageOptionCommandEvent)?.languageOption
+                        .languageOptionType == .legible
+                else {
+                    return .noSuchContent
+                }
+                self.onSelectSubtitle?(-1)
+                return .success
+            }
+        }
+
         applySkipIntervals()
         center.playCommand.isEnabled = true
         center.pauseCommand.isEnabled = true
@@ -238,6 +345,38 @@ final class NowPlayingController {
         center.seekBackwardCommand.isEnabled = true
         center.nextTrackCommand.isEnabled = queueHasNext
         center.previousTrackCommand.isEnabled = queueHasPrevious
+        applySubtitleCommandState()
+    }
+
+    /// Offers the subtitle tracks to system remotes as language options.
+    func setSubtitleTracks(_ tracks: [NowPlayingSubtitleTrack], selected: Int?) {
+        guard tracks != subtitleTracks || selected != selectedSubtitle else { return }
+        subtitleTracks = tracks
+        selectedSubtitle = selected
+        applySubtitleCommandState()
+        applyLanguageOptions()
+        if !info.isEmpty { publish(info) }
+    }
+
+    private func applySubtitleCommandState() {
+        guard commandsRegistered, let center = commandCenter else { return }
+        center.enableLanguageOptionCommand.isEnabled = !subtitleTracks.isEmpty
+        center.disableLanguageOptionCommand.isEnabled = !subtitleTracks.isEmpty
+    }
+
+    private func applyLanguageOptions() {
+        let options = subtitleTracks.map(\.languageOption)
+        info[MPNowPlayingInfoPropertyAvailableLanguageOptions] =
+            options.isEmpty
+            ? nil
+            : [
+                MPNowPlayingInfoLanguageOptionGroup(
+                    languageOptions: options, defaultLanguageOption: nil,
+                    allowEmptySelection: true)
+            ]
+        info[MPNowPlayingInfoPropertyCurrentLanguageOptions] =
+            options.isEmpty
+            ? nil : options.filter { $0.identifier == selectedSubtitle.map(String.init) }
     }
 
     /// Follows the user's skip lengths. Safe before the commands register,
@@ -292,6 +431,7 @@ final class NowPlayingController {
             info[MPMediaItemPropertyPlaybackDuration] = durationSeconds
         }
         info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.video.rawValue
+        applyLanguageOptions()
         publish(info)
         loadArtwork(artworkURL)
     }
