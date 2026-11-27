@@ -142,7 +142,9 @@ class _GeneralScreenState extends State<_GeneralScreen> {
                 ],
               ),
             ],
-            if (!PlatformDetection.isWeb) ...[
+            // Apple TV never asks before leaving, and the other setting here
+            // is Android only, so the section has nothing to show there.
+            if (!PlatformDetection.isWeb && !PlatformDetection.isAppleTV) ...[
               _SectionHeader(l10n.behavior),
               adaptiveListSection(
                 children: [

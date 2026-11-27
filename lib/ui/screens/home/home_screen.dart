@@ -720,7 +720,7 @@ class _HomeShellState extends State<_HomeShell>
   }
 
   Future<void> _showExitConfirmation(BuildContext context) async {
-    if (!_userPrefs.get(UserPreferences.confirmExit)) {
+    if (!_userPrefs.shouldConfirmExit) {
       await AppExit.closeApp();
       return;
     }

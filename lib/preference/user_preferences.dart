@@ -4257,10 +4257,18 @@ class UserPreferences extends ChangeNotifier {
   /// already answered stays answered.
   static const setupWizardVersion = 1;
 
+  /// Apple TV never asks, whatever this holds (see [shouldConfirmExit]). The
+  /// value is synced in the shared TV profile, so it keeps one default for
+  /// every TV build.
   static final confirmExit = Preference(
     key: 'confirm_exit',
     defaultValue: true,
   );
+
+  /// Whether leaving the app should ask first. Apple TV apps leave to the
+  /// Home screen on Menu without asking, so Apple TV never does.
+  bool get shouldConfirmExit =>
+      !PlatformDetection.isAppleTV && get(UserPreferences.confirmExit);
 
   static final remoteMediaNotification = Preference(
     key: 'remote_media_notification',

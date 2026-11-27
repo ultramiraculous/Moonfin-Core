@@ -913,9 +913,8 @@ class _GlobalShortcutScopeState extends State<_GlobalShortcutScope>
 
   Future<void> _showExitConfirmation() async {
     try {
-      final shouldConfirm = GetIt.instance<UserPreferences>().get(
-        UserPreferences.confirmExit,
-      );
+      final shouldConfirm =
+          GetIt.instance<UserPreferences>().shouldConfirmExit;
       if (!shouldConfirm) {
         await AppExit.closeApp();
         return;

@@ -599,7 +599,7 @@ List<_SettingsSearchEntry> _buildSettingsSearchIndex({
         subtitle: l10n.scrollSensitivitySubtitle,
         keywords: ['mouse', 'wheel', 'speed', 'scrolling'],
       ),
-    if (!PlatformDetection.isWeb)
+    if (!PlatformDetection.isWeb && !PlatformDetection.isAppleTV)
       general.leaf(
         'confirm_exit',
         l10n.confirmExit,

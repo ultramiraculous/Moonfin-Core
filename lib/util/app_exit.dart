@@ -35,6 +35,18 @@ class AppExit {
   }
 
   static Future<void> closeApp() async {
+    // Apple TV goes back to the Home screen and keeps the app suspended, the
+    // way tvOS apps leave on Menu, so nothing is torn down. Closing the
+    // database here would break the app when the user comes back to it.
+    if (PlatformDetection.isAppleTV) {
+      try {
+        await _appleTvSystemChannel.invokeMethod('exitApp');
+        return;
+      } catch (e, st) {
+        debugPrint('[AppExit] Apple TV exit channel error: $e\n$st');
+      }
+    }
+
     await prepareForExit();
 
     if (PlatformDetection.isAndroid) {
@@ -44,15 +56,6 @@ class AppExit {
         if (handled) return;
       } catch (e, st) {
         debugPrint('[AppExit] Android platform channel error: $e\n$st');
-      }
-    }
-
-    if (PlatformDetection.isAppleTV) {
-      try {
-        await _appleTvSystemChannel.invokeMethod('exitApp');
-        return;
-      } catch (e, st) {
-        debugPrint('[AppExit] Apple TV exit channel error: $e\n$st');
       }
     }
 

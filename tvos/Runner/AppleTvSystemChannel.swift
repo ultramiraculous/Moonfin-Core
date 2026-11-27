@@ -57,8 +57,13 @@ final class AppleTvSystemChannel: NSObject, UITextFieldDelegate {
             finishTextInput(with: nil)
             result(nil)
         case "exitApp":
+            // Same as Menu on any tvOS app's top screen: back to the Home
+            // screen with the app suspended, so it resumes where it was. The
+            // engine keeps its own Menu recognizer on at all times, so the
+            // press can't simply be left for the system to handle.
             result(nil)
-            exit(0)
+            UIControl().sendAction(
+                #selector(URLSessionTask.suspend), to: UIApplication.shared, for: nil)
         default:
             result(FlutterMethodNotImplemented)
         }
