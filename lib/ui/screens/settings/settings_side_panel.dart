@@ -286,6 +286,7 @@ class _SettingsSidePanelState extends ConsumerState<SettingsSidePanel>
     with HingeAware {
   final _preview = SettingsPreviewController();
   final _listNavKey = GlobalKey<NavigatorState>();
+  final _listNavObserver = NavigatorObserver();
   final _listScope = FocusScopeNode(debugLabel: 'SettingsListColumn');
   final _pillFocus = FocusNode(debugLabel: 'SettingsCategoryPill');
   final _searchController = TextEditingController();
@@ -349,6 +350,7 @@ class _SettingsSidePanelState extends ConsumerState<SettingsSidePanel>
   void initState() {
     super.initState();
     SettingsPanel.backHandlers.add(_handleBack);
+    SettingsPanel.innerNavigators.add(_listNavObserver);
     _searchController.addListener(_onSearchChanged);
     _pillFocus.addListener(_onPillFocusChanged);
     if (PlatformDetection.useDesktopUi) {
@@ -367,6 +369,7 @@ class _SettingsSidePanelState extends ConsumerState<SettingsSidePanel>
   @override
   void dispose() {
     SettingsPanel.backHandlers.remove(_handleBack);
+    SettingsPanel.innerNavigators.remove(_listNavObserver);
     _preview.dispose();
     _listScope.dispose();
     _pillFocus.dispose();
@@ -729,6 +732,7 @@ class _SettingsSidePanelState extends ConsumerState<SettingsSidePanel>
           maintainState: true,
           child: Navigator(
             key: _listNavKey,
+            observers: [_listNavObserver],
             onGenerateRoute: (_) {
               final category = _categories[_categoryIndex];
               _shownCategory = category.title;
@@ -937,7 +941,11 @@ class _SettingsSidePanelState extends ConsumerState<SettingsSidePanel>
       appBar: AppBar(
         leading: IconButton(
           onPressed: _closeSettingsPanel,
-          icon: const Icon(Icons.close),
+          icon: Icon(
+            SettingsPanel.presentsAsPage
+                ? Icons.arrow_back_ios_new
+                : Icons.close,
+          ),
         ),
         automaticallyImplyLeading: false,
         title: Text(l10n.settings),

@@ -1,6 +1,7 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:custom_tv_text_field/custom_tv_text_field.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:moonfin_design/moonfin_design.dart';
@@ -35,12 +36,24 @@ class SettingsPanel extends StatelessWidget {
   /// the panel pops its root. A handler returns true when it used the press.
   static final backHandlers = <bool Function()>[];
 
+  /// Navigators inside the panel. The page swipes away only while none of
+  /// them can pop.
+  static final innerNavigators = <NavigatorObserver>{};
+
+  static bool get _innerCanPop =>
+      innerNavigators.any((o) => o.navigator?.canPop() ?? false);
+
   const SettingsPanel({
     super.key,
     required this.child,
     required this.navigatorKey,
     this.wide = false,
   });
+
+  /// On iOS the panel fills the screen, so it opens as a page that swipes
+  /// back from the left edge.
+  static bool get presentsAsPage =>
+      PlatformDetection.isIOS && PlatformDetection.useMobileUi;
 
   static Future<void> open(
     BuildContext context,
@@ -51,25 +64,43 @@ class SettingsPanel extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     isOpenNotifier.value = true;
     final navigatorKey = GlobalKey();
-    final future = showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: l10n.settings,
-      barrierColor: AppColorScheme.scrim.withValues(alpha: wide ? 0.72 : 0.54),
-      transitionDuration: const Duration(milliseconds: 220),
-      pageBuilder: (_, anim, _) =>
-          SettingsPanel(navigatorKey: navigatorKey, wide: wide, child: content),
-      transitionBuilder: (context, anim, secondAnim, child) {
-        final slide = Tween<Offset>(
-          begin: const Offset(1.0, 0.0),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
-        return SlideTransition(
-          position: slide,
-          child: FadeTransition(opacity: anim, child: child),
-        );
-      },
-    );
+    final future = presentsAsPage
+        ? Navigator.of(context, rootNavigator: true).push(
+            _SettingsPageRoute(
+              builder: (_) => SettingsPanel(
+                navigatorKey: navigatorKey,
+                wide: wide,
+                child: content,
+              ),
+            ),
+          )
+        : showGeneralDialog<void>(
+            context: context,
+            barrierDismissible: true,
+            barrierLabel: l10n.settings,
+            barrierColor: AppColorScheme.scrim.withValues(
+              alpha: wide ? 0.72 : 0.54,
+            ),
+            transitionDuration: const Duration(milliseconds: 220),
+            pageBuilder: (_, anim, _) => SettingsPanel(
+              navigatorKey: navigatorKey,
+              wide: wide,
+              child: content,
+            ),
+            transitionBuilder: (context, anim, secondAnim, child) {
+              final slide =
+                  Tween<Offset>(
+                    begin: const Offset(1.0, 0.0),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+                  );
+              return SlideTransition(
+                position: slide,
+                child: FadeTransition(opacity: anim, child: child),
+              );
+            },
+          );
     return future.whenComplete(() {
       isOpenNotifier.value = false;
     });
@@ -160,6 +191,34 @@ class SettingsPanel extends StatelessWidget {
   }
 }
 
+class _SettingsPageRoute extends PageRoute<void>
+    with CupertinoRouteTransitionMixin<void> {
+  _SettingsPageRoute({required this.builder});
+
+  final WidgetBuilder builder;
+
+  @override
+  Widget buildContent(BuildContext context) => builder(context);
+
+  @override
+  String? get title => null;
+
+  @override
+  bool get maintainState => true;
+
+  // Glass themes show the app through the panel.
+  @override
+  bool get opaque => false;
+
+  // Skip the panel's PopScope, which routes Back through the inner pages.
+  @override
+  bool get popGestureEnabled =>
+      !isFirst &&
+      !willHandlePopInternally &&
+      animation!.isCompleted &&
+      !SettingsPanel._innerCanPop;
+}
+
 class _SettingsNavigator extends StatefulWidget {
   final Widget initial;
 
@@ -171,6 +230,7 @@ class _SettingsNavigator extends StatefulWidget {
 
 class _SettingsNavigatorState extends State<_SettingsNavigator> {
   final _navKey = GlobalKey<NavigatorState>();
+  final _navObserver = NavigatorObserver();
   final _trapScope = FocusScopeNode(
     debugLabel: 'SettingsPanelTrap',
     traversalEdgeBehavior: TraversalEdgeBehavior.stop,
@@ -178,7 +238,14 @@ class _SettingsNavigatorState extends State<_SettingsNavigator> {
   bool _rootDismissInProgress = false;
 
   @override
+  void initState() {
+    super.initState();
+    SettingsPanel.innerNavigators.add(_navObserver);
+  }
+
+  @override
   void dispose() {
+    SettingsPanel.innerNavigators.remove(_navObserver);
     _trapScope.dispose();
     super.dispose();
   }
@@ -226,6 +293,7 @@ class _SettingsNavigatorState extends State<_SettingsNavigator> {
           },
           child: Navigator(
             key: _navKey,
+            observers: [_navObserver],
             onGenerateRoute: (_) =>
                 MaterialPageRoute(builder: (_) => widget.initial),
           ),
@@ -251,13 +319,14 @@ extension SettingsPush on BuildContext {
     final path =
         previewPath ??
         [...SettingsPreviewPath.of(this), if (opener.isNotEmpty) opener];
-    return Navigator.of(this)
-        .push(
-          PageRouteBuilder(
-            pageBuilder: (_, _, _) => SettingsPreviewPath(
-              path: path,
-              child: autofocus ? _AutoFocusWrapper(child: screen) : screen,
-            ),
+    Widget build(BuildContext _) => SettingsPreviewPath(
+      path: path,
+      child: autofocus ? _AutoFocusWrapper(child: screen) : screen,
+    );
+    final route = SettingsPanel.presentsAsPage
+        ? CupertinoPageRoute<void>(builder: build)
+        : PageRouteBuilder<void>(
+            pageBuilder: (context, _, _) => build(context),
             transitionDuration: const Duration(milliseconds: 160),
             reverseTransitionDuration: const Duration(milliseconds: 130),
             transitionsBuilder: (context, anim, _, child) {
@@ -270,13 +339,12 @@ extension SettingsPush on BuildContext {
                   );
               return SlideTransition(position: slide, child: child);
             },
-          ),
-        )
-        .then((_) {
-          if (focusToRestore != null && focusToRestore.context != null) {
-            focusToRestore.requestFocus();
-          }
-        });
+          );
+    return Navigator.of(this).push(route).then((_) {
+      if (focusToRestore != null && focusToRestore.context != null) {
+        focusToRestore.requestFocus();
+      }
+    });
   }
 }
 
