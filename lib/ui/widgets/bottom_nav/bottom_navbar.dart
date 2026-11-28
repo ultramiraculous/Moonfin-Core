@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:playback_core/playback_core.dart';
@@ -133,6 +135,9 @@ class _BottomNavbarState extends State<BottomNavbar> {
   bool _settled = false;
 
   final _controller = BottomNavController();
+  final _barKey = GlobalKey();
+  String? _closingSheetFor;
+  static int _forwardedPointer = 1 << 30;
   final _subs = <StreamSubscription>[];
   bool _hasTrack = false;
 
@@ -171,10 +176,44 @@ class _BottomNavbarState extends State<BottomNavbar> {
 
   BottomNavbarStyle get _style => _controller.style;
 
+  /// Replays a tap that landed on the bar while one of its sheets covered it,
+  /// so it reaches whatever is drawn there. The item that opened the sheet
+  /// only closes it.
+  void _tapThroughSheet(String sheetItemId, Offset position) {
+    final box = _barKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached) return;
+    final toLocal = Matrix4.tryInvert(box.getTransformTo(null));
+    if (toLocal == null) return;
+    final result = BoxHitTestResult();
+    final hit = result.addWithRawTransform(
+      transform: toLocal,
+      position: position,
+      hitTest: (result, local) => box.hitTest(result, position: local),
+    );
+    if (!hit) return;
+    final binding = GestureBinding.instance;
+    result.add(HitTestEntry(binding));
+    final pointer = _forwardedPointer++;
+    _closingSheetFor = sheetItemId;
+    try {
+      binding.dispatchEvent(
+        PointerDownEvent(pointer: pointer, position: position),
+        result,
+      );
+      binding.dispatchEvent(
+        PointerUpEvent(pointer: pointer, position: position),
+        result,
+      );
+    } finally {
+      _closingSheetFor = null;
+    }
+  }
+
   void _onTap(BottomNavBarItem item, BottomNavTheme theme) {
     final route = widget.activeRoute ?? '';
     final barHeight = BottomNavbar.heightFor(context, style: _style);
     HapticFeedback.selectionClick();
+    if (item.id == _closingSheetFor) return;
     switch (item.kind) {
       case BottomNavItemKind.home:
         openBottomNavHome(context, alreadyHome: route == Destinations.home);
@@ -187,6 +226,7 @@ class _BottomNavbarState extends State<BottomNavbar> {
             theme: theme,
             style: _style,
             barHeight: barHeight,
+            onBarTap: _tapThroughSheet,
           );
         } else if (!bottomNavTabMatchesRoute(tab, route)) {
           openBottomNavTab(context, tab);
@@ -198,6 +238,7 @@ class _BottomNavbarState extends State<BottomNavbar> {
           theme: theme,
           style: _style,
           barHeight: barHeight,
+          onBarTap: _tapThroughSheet,
         );
     }
   }
@@ -304,7 +345,7 @@ class _BottomNavbarState extends State<BottomNavbar> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [?widget.header, bar],
+      children: [?widget.header, KeyedSubtree(key: _barKey, child: bar)],
     );
   }
 }

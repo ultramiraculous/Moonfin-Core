@@ -26,6 +26,7 @@ Future<void> showBottomNavbarHub({
   required BottomNavTheme theme,
   required BottomNavbarStyle style,
   required double barHeight,
+  BottomNavSheetBarTap? onBarTap,
 }) async {
   controller.hubOpen = true;
   try {
@@ -34,6 +35,9 @@ Future<void> showBottomNavbarHub({
       theme: theme,
       style: style,
       barHeight: barHeight,
+      onBarTap: onBarTap == null
+          ? null
+          : (position) => onBarTap(const BottomNavBarItem.you(0).id, position),
       builder: (sheetContext) {
         // The sheet outlives nothing it opens, so each action closes it first
         // and then runs against the bar's context.
@@ -57,6 +61,7 @@ Future<void> showBottomNavbarHub({
                   theme: theme,
                   style: style,
                   barHeight: barHeight,
+                  onBarTap: onBarTap,
                 );
               } else if (tab != null) {
                 openBottomNavTab(context, tab);

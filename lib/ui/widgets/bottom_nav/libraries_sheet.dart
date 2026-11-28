@@ -3,6 +3,7 @@ import 'package:moonfin_design/moonfin_design.dart';
 
 import '../../../data/models/aggregated_library.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../preference/bottom_nav_tabs.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../util/game_library.dart';
 import '../../navigation/destinations.dart';
@@ -19,12 +20,16 @@ Future<void> showBottomNavLibrariesSheet({
   required BottomNavTheme theme,
   required BottomNavbarStyle style,
   required double barHeight,
+  BottomNavSheetBarTap? onBarTap,
 }) {
   return showBottomNavSheet(
     context: context,
     theme: theme,
     style: style,
     barHeight: barHeight,
+    onBarTap: onBarTap == null
+        ? null
+        : (position) => onBarTap(BottomNavTab.libraries.name, position),
     builder: (sheetContext) => _LibrariesSheet(
       libraries: controller.navLibraries,
       theme: theme,
