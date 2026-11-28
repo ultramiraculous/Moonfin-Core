@@ -31,6 +31,8 @@ Future<void> showBottomNavbarHub({
   try {
     await showBottomNavSheet(
       context: context,
+      controller: controller,
+      itemId: const BottomNavBarItem.you(0).id,
       theme: theme,
       style: style,
       barHeight: barHeight,

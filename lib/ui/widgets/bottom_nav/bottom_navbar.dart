@@ -133,6 +133,7 @@ class _BottomNavbarState extends State<BottomNavbar> {
   bool _settled = false;
 
   final _controller = BottomNavController();
+  String? _sheetClosedFor;
   final _subs = <StreamSubscription>[];
   bool _hasTrack = false;
 
@@ -175,6 +176,9 @@ class _BottomNavbarState extends State<BottomNavbar> {
     final route = widget.activeRoute ?? '';
     final barHeight = BottomNavbar.heightFor(context, style: _style);
     HapticFeedback.selectionClick();
+    final closed = _sheetClosedFor;
+    _sheetClosedFor = null;
+    if (item.id == closed) return;
     switch (item.kind) {
       case BottomNavItemKind.home:
         openBottomNavHome(context, alreadyHome: route == Destinations.home);
@@ -304,7 +308,16 @@ class _BottomNavbarState extends State<BottomNavbar> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [?widget.header, bar],
+      children: [
+        ?widget.header,
+        // Any tap on the bar closes the sheet it opened before the tap acts,
+        // and the item that opened it only closes it.
+        Listener(
+          onPointerDown: (_) => _sheetClosedFor = null,
+          onPointerUp: (_) => _sheetClosedFor = _controller.closeSheet(),
+          child: bar,
+        ),
+      ],
     );
   }
 }

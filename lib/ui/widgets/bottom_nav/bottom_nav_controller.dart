@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:server_core/server_core.dart';
 
@@ -94,6 +94,40 @@ class BottomNavController extends ChangeNotifier {
       }
     } catch (_) {}
     return null;
+  }
+
+  Route<void>? _sheet;
+  String? _sheetItemId;
+
+  /// Remembers the sheet that the bar item [itemId] opened, so a tap on the
+  /// bar can close it.
+  void sheetOpened(String itemId, Route<void> route) {
+    _sheet = route;
+    _sheetItemId = itemId;
+  }
+
+  void sheetClosed(Route<void> route) {
+    if (_sheet != route) return;
+    _sheet = null;
+    _sheetItemId = null;
+  }
+
+  /// Closes the open sheet, if any, and returns the id of the bar item that
+  /// opened it.
+  String? closeSheet() {
+    final route = _sheet;
+    final itemId = _sheetItemId;
+    if (route == null) return null;
+    sheetClosed(route);
+    final navigator = route.navigator;
+    if (navigator != null && route.isActive) {
+      if (route.isCurrent) {
+        navigator.pop();
+      } else {
+        navigator.removeRoute(route);
+      }
+    }
+    return itemId;
   }
 
   bool get hubOpen => _hubOpen;
