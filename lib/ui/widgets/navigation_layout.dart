@@ -126,6 +126,30 @@ class NavigationLayout extends StatefulWidget {
     return true;
   }
 
+  /// Scrolls the page [context] sits in back to the top, and says whether it
+  /// had anywhere to go, so a tap on a page already at the top can do
+  /// something else instead.
+  static bool scrollContentToTop(BuildContext context) =>
+      context
+          .findAncestorStateOfType<_NavigationLayoutState>()
+          ?._scrollContentToTop() ??
+      false;
+
+  /// Hands taps that scroll the page to the top to [returnToStart] instead,
+  /// for pages whose start means more than an offset. Call the returned
+  /// function to hand them back.
+  static VoidCallback attachQuickReturn(
+    BuildContext context,
+    bool Function() returnToStart,
+  ) {
+    final state = context.findAncestorStateOfType<_NavigationLayoutState>();
+    if (state == null) return () {};
+    state._quickReturn = returnToStart;
+    return () {
+      if (state._quickReturn == returnToStart) state._quickReturn = null;
+    };
+  }
+
   const NavigationLayout({
     super.key,
     this.activeRoute,
@@ -155,6 +179,10 @@ class _NavigationLayoutState extends State<NavigationLayout>
   bool _userScrolling = false;
   double _scrollTravel = 0;
   ModalRoute<dynamic>? _observedRoute;
+  // The page's main list: the outermost vertical scrollable that last moved.
+  // One that never moved is still at the top.
+  ScrollableState? _mainScrollable;
+  bool Function()? _quickReturn;
   final _playbackManager = GetIt.instance<PlaybackManager>();
   StreamSubscription? _playSub;
   StreamSubscription? _queueSub;
@@ -208,6 +236,39 @@ class _NavigationLayoutState extends State<NavigationLayout>
   void _expandBottomBar() {
     _scrollTravel = 0;
     _bottomMinimized.value = false;
+  }
+
+  bool _trackMainScrollable(ScrollNotification n) {
+    if (n.metrics.axis != Axis.vertical || n.depth > 1) return false;
+    final notificationContext = n.context;
+    if (notificationContext == null) return false;
+    final scrollable = Scrollable.maybeOf(notificationContext);
+    if (scrollable != null) _mainScrollable = scrollable;
+    return false;
+  }
+
+  bool _scrollContentToTop() {
+    if (_quickReturn?.call() ?? false) return true;
+    final scrollable = _mainScrollable;
+    if (scrollable == null || !scrollable.mounted) return false;
+    final position = scrollable.position;
+    if (!position.hasPixels || position.pixels <= position.minScrollExtent) {
+      return false;
+    }
+    position.animateTo(
+      position.minScrollExtent,
+      duration: const Duration(milliseconds: 1000),
+      curve: Curves.easeOutCirc,
+    );
+    return true;
+  }
+
+  // Scaffold only scrolls the route's PrimaryScrollController, which most
+  // pages don't use for their main list.
+  @override
+  void handleStatusBarTap() {
+    if (!mounted || !(_observedRoute?.isCurrent ?? true)) return;
+    _scrollContentToTop();
   }
 
   bool _onBottomScroll(ScrollNotification n) {
@@ -330,10 +391,13 @@ class _NavigationLayoutState extends State<NavigationLayout>
   /// instead of tearing it down and building it again.
   Widget get _content => KeyedSubtree(
     key: _contentKey,
-    child: Focus(
-      focusNode: _contentFocusNode,
-      skipTraversal: true,
-      child: widget.child,
+    child: NotificationListener<ScrollNotification>(
+      onNotification: _trackMainScrollable,
+      child: Focus(
+        focusNode: _contentFocusNode,
+        skipTraversal: true,
+        child: widget.child,
+      ),
     ),
   );
 

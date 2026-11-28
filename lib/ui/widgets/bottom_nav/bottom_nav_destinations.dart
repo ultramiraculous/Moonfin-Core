@@ -11,6 +11,7 @@ import '../../navigation/home_refresh_bus.dart';
 import '../../screens/downloads/downloads_panel.dart';
 import '../../screens/watch_party/watch_together_route.dart';
 import '../adaptive/sf_symbol.dart';
+import '../navigation_layout.dart';
 import '../remote_control_dialog.dart';
 import '../seerr_icons.dart';
 import '../shuffle_overlay.dart';
@@ -162,10 +163,15 @@ void openBottomNavTab(BuildContext context, BottomNavTab tab) {
   context.navigateTopLevel(route);
 }
 
-/// Home refreshes when tapped where it already is, and asks for a refresh on
-/// arrival otherwise.
+/// A tab tapped while its screen is showing scrolls that screen to the top.
+void reselectBottomNavTab(BuildContext context) =>
+    NavigationLayout.scrollContentToTop(context);
+
+/// Home tapped where it already is scrolls back to the top, or refreshes once
+/// it's there. Otherwise it asks for a refresh on arrival.
 void openBottomNavHome(BuildContext context, {required bool alreadyHome}) {
   if (alreadyHome) {
+    if (NavigationLayout.scrollContentToTop(context)) return;
     homeRefreshBus.request(newMediaBar: true);
     return;
   }

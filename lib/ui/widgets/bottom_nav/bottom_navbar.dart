@@ -190,6 +190,8 @@ class _BottomNavbarState extends State<BottomNavbar> {
           );
         } else if (!bottomNavTabMatchesRoute(tab, route)) {
           openBottomNavTab(context, tab);
+        } else {
+          reselectBottomNavTab(context);
         }
       case BottomNavItemKind.you:
         showBottomNavbarHub(
@@ -266,6 +268,8 @@ class _BottomNavbarState extends State<BottomNavbar> {
             HapticFeedback.selectionClick();
             if (widget.activeRoute != Destinations.search) {
               openBottomNavTab(context, BottomNavTab.search);
+            } else {
+              reselectBottomNavTab(context);
             }
           },
           miniPlayer: player(BottomMiniPlayerVariant.capsule),

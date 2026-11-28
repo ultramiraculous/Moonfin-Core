@@ -6,6 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../../util/platform_detection.dart';
 import '../navigation/route_lifecycle_observer.dart';
 import 'bottom_nav/bottom_navbar.dart';
+import 'navigation_layout.dart';
 import 'overlay_sheet.dart';
 
 const _kScrolledAwayThreshold = 20.0;
@@ -65,6 +66,7 @@ class _QuickReturnWrapperState extends State<QuickReturnWrapper>
   bool _interceptorRegistered = false;
   bool _routeIsOnTop = true;
   ModalRoute<dynamic>? _observedRoute;
+  VoidCallback? _detachQuickReturn;
 
   @override
   void initState() {
@@ -77,6 +79,10 @@ class _QuickReturnWrapperState extends State<QuickReturnWrapper>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _detachQuickReturn ??= NavigationLayout.attachQuickReturn(
+      context,
+      _returnIfAway,
+    );
     final route = ModalRoute.of(context);
     if (route == null || route == _observedRoute) return;
     if (_observedRoute != null) routeLifecycleObserver.unsubscribe(this);
@@ -106,6 +112,7 @@ class _QuickReturnWrapperState extends State<QuickReturnWrapper>
 
   @override
   void dispose() {
+    _detachQuickReturn?.call();
     _unregisterInterceptor();
     if (_observedRoute != null) routeLifecycleObserver.unsubscribe(this);
     widget.scrollController?.removeListener(_updateScrollState);
@@ -149,6 +156,12 @@ class _QuickReturnWrapperState extends State<QuickReturnWrapper>
   /// threshold.
   bool _returnFromBack() {
     if (widget.topFocusNode?.hasFocus ?? false) return false;
+    _returnToStart();
+    return true;
+  }
+
+  bool _returnIfAway() {
+    if (!_isScrolledAway) return false;
     _returnToStart();
     return true;
   }
