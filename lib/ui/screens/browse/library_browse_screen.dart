@@ -30,6 +30,7 @@ import '../../../util/focus/grid_focus_node_mixin.dart';
 import '../../../util/focus/grid_section_target.dart';
 import '../../../util/platform_detection.dart';
 import '../../navigation/destinations.dart';
+import '../../navigation/play_from_card.dart';
 import '../../navigation/route_lifecycle_observer.dart';
 import '../../widgets/alphabet_scrub_rail.dart';
 import '../../widgets/bottom_nav/bottom_navbar.dart';
@@ -1865,6 +1866,7 @@ class _LibraryBrowseScreenState extends State<LibraryBrowseScreen>
             _hideWatchProgress ? null : _displayPlayedPercentage(item),
         watchedBehavior: watchedBehavior,
         itemType: item.type,
+        onPlay: () => playFromCard(context, item),
         onFocus: isMobile
             ? null
             : () {
@@ -2140,6 +2142,7 @@ class _LibraryBrowseScreenState extends State<LibraryBrowseScreen>
                             : _displayPlayedPercentage(item),
                         watchedBehavior: watchedBehavior,
                         itemType: item.type,
+                        onPlay: () => playFromCard(context, item),
                         onFocus: () => _onItemFocused(item),
                         onHoverStart: () => _onItemFocused(item),
                         onHoverEnd: () => _vm.setFocusedItem(null),

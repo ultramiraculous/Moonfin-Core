@@ -17,6 +17,7 @@ import '../../../util/platform_detection.dart';
 import '../../../util/focus/grid_focus_node_mixin.dart';
 import '../../../util/focus/dpad_keys.dart';
 import '../../navigation/destinations.dart';
+import '../../navigation/play_from_card.dart';
 import '../../widgets/focus/context_menu_sheet.dart';
 import '../../widgets/focus/focusable_toolbar_button.dart';
 import '../../widgets/focus/request_initial_focus.dart';
@@ -653,6 +654,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       playedPercentage: item.playedPercentage,
       watchedBehavior: watchedBehavior,
       itemType: item.type,
+      onPlay: () => playFromCard(context, item),
       onFocus: isMobile ? null : () => _onItemFocused(item),
       onHoverStart: isMobile ? null : () => _onItemFocused(item),
       onHoverEnd: isMobile ? null : () => _vm.setFocusedItem(null),
@@ -784,6 +786,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                     playedPercentage: item.playedPercentage,
                     watchedBehavior: watchedBehavior,
                     itemType: item.type,
+                    onPlay: () => playFromCard(context, item),
                     onFocus: isMobile
                       ? null
                       : () {

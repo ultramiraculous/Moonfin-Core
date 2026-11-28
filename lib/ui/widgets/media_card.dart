@@ -115,6 +115,9 @@ class MediaCard extends StatefulWidget {
   final VoidCallback? onHoverStart;
   final VoidCallback? onHoverEnd;
   final VoidCallback? onLongPress;
+
+  /// Runs on the Play key while focused; returns whether playback started.
+  final bool Function()? onPlay;
   final bool isFavorite;
   final bool isPlayed;
   final int? unplayedCount;
@@ -193,6 +196,7 @@ class MediaCard extends StatefulWidget {
     this.onHoverStart,
     this.onHoverEnd,
     this.onLongPress,
+    this.onPlay,
     this.isFavorite = false,
     this.isPlayed = false,
     this.unplayedCount,
@@ -582,6 +586,11 @@ class _MediaCardState extends State<MediaCard> with FocusStateMixin {
               focusNode: widget.focusNode,
               autofocus: widget.autofocus,
               onKeyEvent: (node, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey.isPlayKey &&
+                    (widget.onPlay?.call() ?? false)) {
+                  return KeyEventResult.handled;
+                }
                 if (widget.onLongPress != null) {
                   final handlerResult = _selectKeyHandler.handleKeyEvent(
                     event,

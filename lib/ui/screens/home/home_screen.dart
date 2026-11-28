@@ -69,6 +69,7 @@ import '../../../util/platform_detection.dart';
 import '../../../util/server_url.dart';
 import '../../navigation/app_router.dart';
 import '../../navigation/destinations.dart';
+import '../../navigation/play_from_card.dart';
 import '../../../data/models/media_bar_state.dart';
 import '../../../data/viewmodels/media_bar_view_model.dart';
 import '../../widgets/grid_button_card.dart';
@@ -6160,6 +6161,13 @@ class _ContentRowsState extends State<_ContentRows>
             onChanged: () => setState(() {}),
             isContinueWatchingOrNextUp: _isContinueWatchingOrNextUp(row),
           );
+        },
+        onPlay: (_, item) {
+          if (identical(item, _seeAllItem) || !canPlayFromCard(item)) {
+            return false;
+          }
+          _finishSharedPreview(releaseResources: true);
+          return playFromCard(context, item);
         },
         onTap: (_, item) {
           _finishSharedPreview(releaseResources: true);

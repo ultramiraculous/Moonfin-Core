@@ -42,6 +42,12 @@ final Set<LogicalKeyboardKey> _pageBackKeys = <LogicalKeyboardKey>{
   LogicalKeyboardKey.pageUp,
 };
 
+final Set<LogicalKeyboardKey> _playKeys = <LogicalKeyboardKey>{
+  LogicalKeyboardKey.play,
+  LogicalKeyboardKey.mediaPlay,
+  LogicalKeyboardKey.mediaPlayPause,
+};
+
 /// Keys that open Recordings. CEC's Contents Menu is the "title list" in
 /// Android's KeyEvent docs, which a TV remote may send for its DVR button.
 final Set<LogicalKeyboardKey> _recordingsKeys = <LogicalKeyboardKey>{
@@ -56,6 +62,7 @@ extension DpadKeyExtension on LogicalKeyboardKey {
   bool get isRightKey => this == LogicalKeyboardKey.arrowRight;
   bool get isSelectKey => _selectKeys.contains(this);
   bool get isBackKey => _backKeys.contains(this);
+  bool get isPlayKey => _playKeys.contains(this);
   bool get isContextMenuKey => _contextMenuKeys.contains(this);
   bool get isRecordingsKey => _recordingsKeys.contains(this);
   bool get isDirectional => isUpKey || isDownKey || isLeftKey || isRightKey;

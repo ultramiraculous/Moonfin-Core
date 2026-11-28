@@ -53,6 +53,9 @@ class LockedFocusRow<T> extends StatefulWidget {
   final LockedFocusItemBuilder<T> itemBuilder;
   final void Function(int index, T item)? onTap;
   final void Function(int index, T item)? onLongPress;
+
+  /// Runs on the Play key; returns whether playback started.
+  final bool Function(int index, T item)? onPlay;
   final void Function(int index, T item)? onIndexChanged;
   final ValueChanged<bool>? onFocusChange;
   final LockedFocusVerticalNav? onVerticalNavigation;
@@ -81,6 +84,7 @@ class LockedFocusRow<T> extends StatefulWidget {
     this.focusNode,
     this.onTap,
     this.onLongPress,
+    this.onPlay,
     this.onIndexChanged,
     this.onFocusChange,
     this.onVerticalNavigation,
@@ -362,6 +366,17 @@ class LockedFocusRowState<T> extends State<LockedFocusRow<T>>
 
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
     if (widget.items.isEmpty) return KeyEventResult.ignored;
+
+    if (event is KeyDownEvent &&
+        event.logicalKey.isPlayKey &&
+        widget.onPlay != null) {
+      final idx = _focusedIndex;
+      if (idx >= 0 &&
+          idx < widget.items.length &&
+          widget.onPlay!(idx, widget.items[idx])) {
+        return KeyEventResult.handled;
+      }
+    }
 
     if (event.logicalKey.isSelectKey) {
       if (widget.onLongPress != null) {

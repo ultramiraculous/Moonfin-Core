@@ -13,6 +13,7 @@ import '../../../util/focus/dpad_keys.dart';
 import '../../../util/game_library.dart';
 import '../../../util/platform_detection.dart';
 import '../../navigation/destinations.dart';
+import '../../navigation/play_from_card.dart';
 import '../../widgets/focus/request_initial_focus.dart';
 import '../../widgets/media_card.dart';
 import '../../widgets/bottom_nav/bottom_navbar.dart';
@@ -439,6 +440,7 @@ class _FolderBrowseScreenState extends State<FolderBrowseScreen> {
               width: double.infinity,
               aspectRatio: itemAr,
               itemType: isFolder ? 'Folder' : item.type,
+              onPlay: () => playFromCard(context, item),
               focusColor: focusColor,
               focusNode: _getGridItemFocusNode(index),
               cardFocusExpansion: cardFocusExpansion,
